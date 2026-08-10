@@ -11,6 +11,18 @@ import {
   authenticateWithLinkedIn,
   authenticateWithMicrosoft,
   authenticateWithApple,
+  signInWithGoogle,
+  signInWithGitHub,
+  signInWithFacebook,
+  signInWithLinkedIn,
+  signInWithMicrosoft,
+  signInWithApple,
+  signUpWithGoogle,
+  signUpWithGitHub,
+  signUpWithFacebook,
+  signUpWithLinkedIn,
+  signUpWithMicrosoft,
+  signUpWithApple,
 } from 'voult-sdk';
 
 const router = Router();
@@ -24,6 +36,24 @@ const VOULT_HANDLERS = {
   linkedin: authenticateWithLinkedIn,
   microsoft: authenticateWithMicrosoft,
   apple: authenticateWithApple,
+};
+
+const VOULT_LOGIN_HANDLERS = {
+  google: signInWithGoogle,
+  github: signInWithGitHub,
+  facebook: signInWithFacebook,
+  linkedin: signInWithLinkedIn,
+  microsoft: signInWithMicrosoft,
+  apple: signInWithApple,
+};
+
+const VOULT_REGISTER_HANDLERS = {
+  google: signUpWithGoogle,
+  github: signUpWithGitHub,
+  facebook: signUpWithFacebook,
+  linkedin: signUpWithLinkedIn,
+  microsoft: signUpWithMicrosoft,
+  apple: signUpWithApple,
 };
 
 function getBackendUrl(req) {
@@ -282,6 +312,26 @@ function redirectSuccess(res) {
 }
 
 function formatOAuthError(err) {
+  const apiCode = err?.apiCode || err?.details?.apiCode;
+
+  if (apiCode === 'EBADCSRFTOKEN') {
+    return (
+      'This Voult API still requires CSRF on OAuth routes. Deploy the latest voult API ' +
+      '(or use a local instance) — the playground BFF expects SDK-style OAuth endpoints.'
+    );
+  }
+
+  if (
+    err?.status === 401 &&
+    apiCode === 'UNAUTHORIZED' &&
+    /authentication required/i.test(String(err?.message || ''))
+  ) {
+    return (
+      'This Voult API does not expose POST /api/auth/{provider}/authenticate yet. ' +
+      'Deploy the latest voult API to staging, or set VOULT_BASE_URL to a current instance.'
+    );
+  }
+
   if (typeof err?.message === 'string' && err.message !== '[object Object]') {
     return err.message;
   }
@@ -298,6 +348,45 @@ function formatOAuthError(err) {
   if (typeof err?.code === 'string') return err.code;
 
   return 'OAuth sign-in failed';
+}
+
+function isAuthenticateUnavailable(err) {
+  const apiCode = err?.apiCode || err?.details?.apiCode;
+  return (
+    err?.status === 401 &&
+    apiCode === 'UNAUTHORIZED' &&
+    /authentication required/i.test(String(err?.message || ''))
+  );
+}
+
+function isUserNotFound(err) {
+  const apiCode = err?.apiCode || err?.details?.apiCode;
+  return err?.status === 404 || apiCode === 'USER_NOT_FOUND';
+}
+
+async function authenticateWithVoult(provider, credentials) {
+  client.clearSession();
+
+  const authenticate = VOULT_HANDLERS[provider];
+  try {
+    return await authenticate(credentials, client);
+  } catch (err) {
+    if (!isAuthenticateUnavailable(err)) {
+      throw err;
+    }
+
+    const login = VOULT_LOGIN_HANDLERS[provider];
+    const register = VOULT_REGISTER_HANDLERS[provider];
+
+    try {
+      return await login(credentials, client);
+    } catch (loginErr) {
+      if (isUserNotFound(loginErr)) {
+        return await register(credentials, client);
+      }
+      throw loginErr;
+    }
+  }
 }
 
 async function completeOAuth(req, res, provider, payload) {
@@ -325,8 +414,7 @@ async function completeOAuth(req, res, provider, payload) {
 
   try {
     const credentials = await buildVoultCredentials(req, provider, payload);
-    const authenticate = VOULT_HANDLERS[provider];
-    const result = await authenticate(credentials, client);
+    const result = await authenticateWithVoult(provider, credentials);
 
     delete req.session.oauth;
 
