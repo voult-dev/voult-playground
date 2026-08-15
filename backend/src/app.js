@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import session from 'express-session';
-import sessionConfig from './config/session.js';
+import cookieParser from 'cookie-parser';
 import syncVoultClient from './middleware/syncVoultClient.js';
 import errorHandler from './middleware/errorHandler.js';
 import apiRoutes from './routes/api.js';
@@ -33,7 +32,7 @@ export function createApp() {
 
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
-  app.use(session(sessionConfig));
+  app.use(cookieParser());
   app.use(syncVoultClient);
 
   app.get('/health', (_req, res) => {

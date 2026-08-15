@@ -1,5 +1,9 @@
+import { readVoultTokens } from '../utils/voultTokens.js';
+
 export default function requireAuth(req, res, next) {
-  if (!req.session?.voult?.accessToken) {
+  const { accessToken, refreshToken } = readVoultTokens(req);
+
+  if (!accessToken && !refreshToken) {
     return res.status(401).json({
       error: {
         code: 'UNAUTHORIZED',
@@ -8,5 +12,6 @@ export default function requireAuth(req, res, next) {
       },
     });
   }
+
   next();
 }

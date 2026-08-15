@@ -6,7 +6,8 @@ import {
   persistVoultAuth,
   clearVoultAuth,
   persistMfaPending,
-} from '../utils/voultSession.js';
+  readVoultTokens,
+} from '../utils/voultTokens.js';
 import { getFrontendUrl } from '../utils/appBaseUrl.js';
 import { sendSanitizedGet, sanitizeUserProfile, sendSanitizedJson } from '../utils/sanitizeResponse.js';
 import {
@@ -69,7 +70,7 @@ const router = Router();
 
 function handleAuthResult(req, res, result) {
   if (result?.mfaRequired) {
-    persistMfaPending(req, result.mfaPendingToken);
+    persistMfaPending(res, result.mfaPendingToken);
     return res.json({
       step: 'mfa',
       mfaRequired: true,
@@ -78,7 +79,7 @@ function handleAuthResult(req, res, result) {
     });
   }
 
-  persistVoultAuth(req, result);
+  persistVoultAuth(res, result);
   return sendSanitizedJson(res, result);
 }
 
@@ -86,10 +87,40 @@ function handleAuthResult(req, res, result) {
 router.get(
   '/auth/session',
   catchAsync(async (req, res) => {
+    const tokens = readVoultTokens(req);
+
+    if (!client.accessToken && client.refreshToken) {
+      try {
+        const result = await refreshSession(client);
+        persistVoultAuth(res, {
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+          user: client.getCurrentUser(),
+        });
+      } catch {
+        clearVoultAuth(res);
+        client.clearSession();
+      }
+    }
+
+    if (client.accessToken && !client.getCurrentUser()) {
+      try {
+        const user = await getCurrentUser(client);
+        persistVoultAuth(res, {
+          accessToken: client.accessToken,
+          refreshToken: client.refreshToken,
+          user,
+        });
+      } catch {
+        clearVoultAuth(res);
+        client.clearSession();
+      }
+    }
+
     sendSanitizedGet(res, 'auth/session', {
-      authenticated: Boolean(req.session?.voult?.accessToken),
-      user: req.session?.voult?.user || null,
-      mfaPending: Boolean(req.session?.mfaPendingToken),
+      authenticated: Boolean(client.accessToken),
+      user: sanitizeUserProfile(client.getCurrentUser()) || tokens.user || null,
+      mfaPending: Boolean(tokens.mfaPendingToken),
     });
   }),
 );
@@ -144,9 +175,10 @@ router.post(
     try {
       await signOut(client);
     } catch {
-      // Clear local session even if remote logout fails
+      // Clear local cookies even if remote logout fails
     }
-    clearVoultAuth(req);
+    client.clearSession();
+    clearVoultAuth(res);
     res.json({ message: 'Logged out successfully' });
   }),
 );
@@ -156,9 +188,8 @@ router.post(
   '/auth/mfa/verify',
   catchAsync(async (req, res) => {
     const { mfaPendingToken, mfaToken } = req.body;
-    const token = mfaPendingToken || req.session?.mfaPendingToken;
+    const token = mfaPendingToken || readVoultTokens(req).mfaPendingToken;
     const result = await verifyMfaLogin(token, mfaToken, client);
-    delete req.session.mfaPendingToken;
     handleAuthResult(req, res, result);
   }),
 );
@@ -310,7 +341,7 @@ router.post(
   requireAuth,
   catchAsync(async (_req, res) => {
     const result = await refreshSession(client);
-    persistVoultAuth(req, {
+    persistVoultAuth(res, {
       user: client.getCurrentUser(),
       accessToken: result.accessToken,
       refreshToken: result.refreshToken,
@@ -336,7 +367,11 @@ router.patch(
     const { fullName } = req.body;
     const result = await updateProfile({ fullName }, client);
     if (client.getCurrentUser()) {
-      req.session.voult.user = sanitizeUserProfile(client.getCurrentUser());
+      persistVoultAuth(res, {
+        accessToken: client.accessToken,
+        refreshToken: client.refreshToken,
+        user: client.getCurrentUser(),
+      });
     }
     sendSanitizedJson(res, result);
   }),
@@ -374,7 +409,8 @@ router.post(
   requireAuth,
   catchAsync(async (req, res) => {
     const result = await deleteUser(client);
-    clearVoultAuth(req);
+    client.clearSession();
+    clearVoultAuth(res);
     res.json(result);
   }),
 );

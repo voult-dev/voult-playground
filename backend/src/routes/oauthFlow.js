@@ -2,7 +2,13 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import client from '../config/client.js';
 import catchAsync from '../utils/catchAsync.js';
-import { persistVoultAuth, persistMfaPending } from '../utils/voultSession.js';
+import {
+  persistVoultAuth,
+  persistMfaPending,
+  setOAuthState,
+  readOAuthState,
+  clearOAuthState,
+} from '../utils/voultTokens.js';
 import { getFrontendUrl } from '../utils/appBaseUrl.js';
 import {
   authenticateWithGoogle,
@@ -390,9 +396,10 @@ async function authenticateWithVoult(provider, credentials) {
 }
 
 async function completeOAuth(req, res, provider, payload) {
-  const oauthSession = req.session.oauth;
+  const oauthSession = readOAuthState(req);
 
   if (payload.error) {
+    clearOAuthState(res);
     return redirectWithError(res, payload.errorDescription || payload.error);
   }
 
@@ -401,14 +408,17 @@ async function completeOAuth(req, res, provider, payload) {
   }
 
   if (!payload.state || payload.state !== oauthSession.state) {
+    clearOAuthState(res);
     return redirectWithError(res, 'Invalid OAuth state.');
   }
 
   if (provider !== 'apple' && !payload.code) {
+    clearOAuthState(res);
     return redirectWithError(res, 'Missing authorization code.');
   }
 
   if (provider === 'apple' && !payload.idToken) {
+    clearOAuthState(res);
     return redirectWithError(res, 'Apple did not return an id_token.');
   }
 
@@ -416,18 +426,18 @@ async function completeOAuth(req, res, provider, payload) {
     const credentials = await buildVoultCredentials(req, provider, payload);
     const result = await authenticateWithVoult(provider, credentials);
 
-    delete req.session.oauth;
+    clearOAuthState(res);
 
     if (result?.mfaRequired) {
-      persistMfaPending(req, result.mfaPendingToken);
+      persistMfaPending(res, result.mfaPendingToken);
       return redirectWithMfa(res);
     }
 
-    persistVoultAuth(req, result);
+    persistVoultAuth(res, result);
     return redirectSuccess(res);
   } catch (err) {
     console.error(`OAuth ${provider} error:`, err);
-    delete req.session.oauth;
+    clearOAuthState(res);
     return redirectWithError(res, formatOAuthError(err));
   }
 }
@@ -448,20 +458,13 @@ function startOAuth(provider) {
 
     const state = crypto.randomBytes(24).toString('hex');
 
-    req.session.oauth = {
+    setOAuthState(res, {
       provider,
       state,
       redirectUri: getRedirectUri(req, provider),
-    };
-
-    req.session.save((err) => {
-      if (err) {
-        return res.status(500).json({
-          error: { code: 'SESSION_ERROR', message: 'Could not start OAuth flow', status: 500 },
-        });
-      }
-      return res.redirect(buildAuthUrl(req, provider, state));
     });
+
+    return res.redirect(buildAuthUrl(req, provider, state));
   });
 }
 
@@ -495,7 +498,7 @@ for (const provider of SUPPORTED_PROVIDERS) {
   if (provider !== 'apple') {
     router.get(`/${provider}/callback`, handleOAuthCallback(provider));
   }
-}
+};
 
 router.post(
   '/callback/apple',
