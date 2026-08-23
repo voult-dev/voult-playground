@@ -28,41 +28,27 @@ SESSION_SECRET=change-me
 
 1. Add `http://localhost:5173/magic-callback` to your Voult app's allowed callback URLs if testing magic links.
 
-2. GitHub one-click login is **Voult-hosted**. Enable GitHub on the App in the Voult dashboard and register this callback on the GitHub OAuth app (not the playground):
+2. One-click OAuth is **Voult-hosted** for every provider (Google, GitHub, Facebook, LinkedIn, Microsoft, Apple). Configure client id/secret on the Voult App, not in the playground `.env`.
 
-- `{VOULT_BASE_URL}/api/oauth/github/callback` (local default: `http://localhost:3000/api/oauth/github/callback`)
+Register this callback on each provider console (local default):
 
-Also add the playground return URL to the Voult app's allowed callback URLs:
+- `http://localhost:3000/api/oauth/google/callback`
+- `http://localhost:3000/api/oauth/github/callback`
+- `http://localhost:3000/api/oauth/facebook/callback`
+- `http://localhost:3000/api/oauth/linkedin/callback`
+- `http://localhost:3000/api/oauth/microsoft/callback`
+- `http://localhost:3000/api/oauth/apple/callback`
 
-- `http://localhost:2000/oauth/callback/github`
+Add the playground return URLs to the Voult app's allowed callback URLs:
 
-Do not put `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` in the playground `.env`. Those belong on the Voult App record.
-
-3. For other one-click providers (Google, Facebook, …), add credentials to `backend/.env`:
-
-```bash
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-FACEBOOK_CLIENT_ID=...
-FACEBOOK_CLIENT_SECRET=...
-LINKEDIN_CLIENT_ID=...
-LINKEDIN_CLIENT_SECRET=...
-MICROSOFT_CLIENT_ID=...
-MICROSOFT_CLIENT_SECRET=...
-APPLE_CLIENT_ID=...
-APPLE_CLIENT_SECRET=...
-```
-
-Register callback URLs in each provider's developer console:
 - `http://localhost:2000/oauth/callback/google`
+- `http://localhost:2000/oauth/callback/github`
 - `http://localhost:2000/oauth/callback/facebook`
 - `http://localhost:2000/oauth/callback/linkedin`
 - `http://localhost:2000/oauth/callback/microsoft`
-- `http://localhost:2000/oauth/callback/apple` (Apple uses POST callback)
+- `http://localhost:2000/oauth/callback/apple`
 
-Also enable each provider in your **Voult app dashboard**.
-
-4. Install and run:
+3. Install and run:
 
 ```bash
 npm install

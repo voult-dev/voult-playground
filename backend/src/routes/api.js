@@ -547,13 +547,12 @@ router.get(
   }),
 );
 
-// OAuth redirect flow config. GitHub is Voult-hosted (dashboard enablement).
+// OAuth redirect flow config. Every provider is Voult-hosted; playground buttons stay enabled.
 router.get(
   '/oauth/config',
   catchAsync(async (_req, res) => {
     const backendUrl = process.env.OAUTH_REDIRECT_BASE_URL || `http://localhost:${process.env.PORT || 2000}`;
     const providers = ['google', 'github', 'facebook', 'linkedin', 'microsoft', 'apple'];
-    const hostedProviders = new Set(['github']);
 
     let visibility = {};
     try {
@@ -567,13 +566,9 @@ router.get(
       providers.map((provider) => [
         provider,
         {
-          hosted: hostedProviders.has(provider),
-          configured: hostedProviders.has(provider)
-            ? Boolean(visibility[provider])
-            : Boolean(
-                process.env[`${provider.toUpperCase()}_CLIENT_ID`] &&
-                  process.env[`${provider.toUpperCase()}_CLIENT_SECRET`],
-              ),
+          hosted: true,
+          configured: true,
+          enabledInVoult: Boolean(visibility[provider]),
           callbackUrl:
             process.env[`${provider.toUpperCase()}_REDIRECT_URI`] ||
             `${backendUrl.replace(/\/$/, '')}/oauth/callback/${provider}`,

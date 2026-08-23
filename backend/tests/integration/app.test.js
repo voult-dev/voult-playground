@@ -46,7 +46,7 @@ describe('BFF HTTP routes', () => {
     expect(mockClient.get).toHaveBeenCalledWith('/api/provider-visibility/app_test123');
   });
 
-  it('GET /api/oauth/config returns all providers', async () => {
+  it('GET /api/oauth/config returns all providers hosted and enabled in playground', async () => {
     mockClient.get.mockResolvedValueOnce({
       providers: { google: true, github: false },
     });
@@ -56,36 +56,38 @@ describe('BFF HTTP routes', () => {
 
     for (const provider of ['google', 'github', 'facebook', 'linkedin', 'microsoft', 'apple']) {
       expect(res.body[provider]).toMatchObject({
-        configured: expect.any(Boolean),
-        hosted: provider === 'github',
+        hosted: true,
+        configured: true,
         callbackUrl: expect.stringContaining(`/oauth/callback/${provider}`),
       });
     }
 
-    expect(res.body.github.configured).toBe(false);
+    expect(res.body.google.enabledInVoult).toBe(true);
+    expect(res.body.github.enabledInVoult).toBe(false);
     expect(mockClient.get).toHaveBeenCalledWith('/api/provider-visibility/app_test123');
   });
 
-  it('GET /oauth/github/start asks Voult for the GitHub auth URL', async () => {
-    getOAuthAuthorizationUrl.mockResolvedValueOnce({
-      authUrl: 'https://github.com/login/oauth/authorize?client_id=from-voult',
-    });
+  it.each(['google', 'github', 'facebook', 'linkedin', 'microsoft', 'apple'])(
+    'GET /oauth/%s/start asks Voult for the auth URL',
+    async (provider) => {
+      getOAuthAuthorizationUrl.mockResolvedValueOnce({
+        authUrl: `https://example.test/oauth/${provider}`,
+      });
 
-    const res = await request(app).get('/oauth/github/start');
+      const res = await request(app).get(`/oauth/${provider}/start`);
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(
-      'https://github.com/login/oauth/authorize?client_id=from-voult',
-    );
-    expect(getOAuthAuthorizationUrl).toHaveBeenCalledWith(
-      'github',
-      expect.objectContaining({
-        intent: 'authenticate',
-        redirectUri: expect.stringContaining('/oauth/callback/github'),
-      }),
-      mockClient,
-    );
-  });
+      expect(res.status).toBe(302);
+      expect(res.headers.location).toBe(`https://example.test/oauth/${provider}`);
+      expect(getOAuthAuthorizationUrl).toHaveBeenCalledWith(
+        provider,
+        expect.objectContaining({
+          intent: 'authenticate',
+          redirectUri: expect.stringContaining(`/oauth/callback/${provider}`),
+        }),
+        mockClient,
+      );
+    },
+  );
 
   it('GET /auth/google/callback redirects to oauth callback route', async () => {
     const res = await request(app)
