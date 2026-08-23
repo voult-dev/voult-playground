@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import '../mocks.js';
 import { mockClient } from '../mocks.js';
+import { getOAuthAuthorizationUrl } from 'voult-sdk';
 import { createApp } from '../../src/app.js';
 
 describe('BFF HTTP routes', () => {
@@ -46,15 +47,44 @@ describe('BFF HTTP routes', () => {
   });
 
   it('GET /api/oauth/config returns all providers', async () => {
+    mockClient.get.mockResolvedValueOnce({
+      providers: { google: true, github: false },
+    });
+
     const res = await request(app).get('/api/oauth/config');
     expect(res.status).toBe(200);
 
     for (const provider of ['google', 'github', 'facebook', 'linkedin', 'microsoft', 'apple']) {
       expect(res.body[provider]).toMatchObject({
         configured: expect.any(Boolean),
+        hosted: provider === 'github',
         callbackUrl: expect.stringContaining(`/oauth/callback/${provider}`),
       });
     }
+
+    expect(res.body.github.configured).toBe(false);
+    expect(mockClient.get).toHaveBeenCalledWith('/api/provider-visibility/app_test123');
+  });
+
+  it('GET /oauth/github/start asks Voult for the GitHub auth URL', async () => {
+    getOAuthAuthorizationUrl.mockResolvedValueOnce({
+      authUrl: 'https://github.com/login/oauth/authorize?client_id=from-voult',
+    });
+
+    const res = await request(app).get('/oauth/github/start');
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(
+      'https://github.com/login/oauth/authorize?client_id=from-voult',
+    );
+    expect(getOAuthAuthorizationUrl).toHaveBeenCalledWith(
+      'github',
+      expect.objectContaining({
+        intent: 'authenticate',
+        redirectUri: expect.stringContaining('/oauth/callback/github'),
+      }),
+      mockClient,
+    );
   });
 
   it('GET /auth/google/callback redirects to oauth callback route', async () => {

@@ -11,6 +11,8 @@ import {
 } from '../utils/voultTokens.js';
 import { getFrontendUrl } from '../utils/appBaseUrl.js';
 import {
+  getOAuthAuthorizationUrl,
+  exchangeOAuthCode,
   authenticateWithGoogle,
   authenticateWithGitHub,
   authenticateWithFacebook,
@@ -34,6 +36,11 @@ import {
 const router = Router();
 
 const SUPPORTED_PROVIDERS = ['google', 'github', 'facebook', 'linkedin', 'microsoft', 'apple'];
+const HOSTED_OAUTH_PROVIDERS = ['github'];
+
+function isHostedOAuthProvider(provider) {
+  return HOSTED_OAUTH_PROVIDERS.includes(provider);
+}
 
 const VOULT_HANDLERS = {
   google: authenticateWithGoogle,
@@ -112,15 +119,6 @@ function buildAuthUrl(req, provider, state) {
       });
       return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     }
-    case 'github': {
-      const params = new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        scope: 'read:user user:email',
-        state,
-      });
-      return `https://github.com/login/oauth/authorize?${params.toString()}`;
-    }
     case 'facebook': {
       const params = new URLSearchParams({
         client_id: clientId,
@@ -193,32 +191,6 @@ async function exchangeGoogleCode(req, code) {
   return { idToken: data.id_token, accessToken: data.access_token };
 }
 
-async function exchangeGitHubCode(req, code) {
-  const { clientId, clientSecret } = oauthConfig('github');
-  const redirectUri = getRedirectUri(req, 'github');
-
-  const response = await fetch('https://github.com/login/oauth/access_token', {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: clientSecret,
-      code,
-      redirect_uri: redirectUri,
-    }),
-  });
-
-  const data = await response.json();
-  if (!response.ok || data.error || !data.access_token) {
-    throw new Error(data.error_description || data.error || 'GitHub token exchange failed');
-  }
-
-  return { accessToken: data.access_token };
-}
-
 async function exchangeFacebookCode(req, code) {
   const { clientId, clientSecret } = oauthConfig('facebook');
   const redirectUri = getRedirectUri(req, 'facebook');
@@ -273,8 +245,6 @@ async function buildVoultCredentials(req, provider, payload) {
   switch (provider) {
     case 'google':
       return exchangeGoogleCode(req, payload.code);
-    case 'github':
-      return exchangeGitHubCode(req, payload.code);
     case 'facebook':
       return exchangeFacebookCode(req, payload.code);
     case 'linkedin':
@@ -319,6 +289,10 @@ function redirectSuccess(res) {
 
 function formatOAuthError(err) {
   const apiCode = err?.apiCode || err?.details?.apiCode;
+
+  if (apiCode === 'PROVIDER_NOT_ENABLED' || apiCode === 'PROVIDER_DISABLED_FOR_THIS_APP') {
+    return 'GitHub OAuth is not enabled for this Voult app. Enable it in the Voult dashboard.';
+  }
 
   if (apiCode === 'EBADCSRFTOKEN') {
     return (
@@ -395,6 +369,38 @@ async function authenticateWithVoult(provider, credentials) {
   }
 }
 
+async function completeHostedOAuth(req, res, provider, payload, oauthSession) {
+  if (!payload.voultCode) {
+    clearOAuthState(res);
+    return redirectWithError(
+      res,
+      'GitHub sign-in must complete through Voult. Enable GitHub in the Voult dashboard.',
+    );
+  }
+
+  try {
+    const result = await exchangeOAuthCode(
+      payload.voultCode,
+      { redirectUri: oauthSession.redirectUri || getRedirectUri(req, provider) },
+      client,
+    );
+
+    clearOAuthState(res);
+
+    if (result?.mfaRequired) {
+      persistMfaPending(res, result.mfaPendingToken);
+      return redirectWithMfa(res);
+    }
+
+    persistVoultAuth(res, result);
+    return redirectSuccess(res);
+  } catch (err) {
+    console.error(`OAuth ${provider} error:`, err);
+    clearOAuthState(res);
+    return redirectWithError(res, formatOAuthError(err));
+  }
+}
+
 async function completeOAuth(req, res, provider, payload) {
   const oauthSession = readOAuthState(req);
 
@@ -405,6 +411,10 @@ async function completeOAuth(req, res, provider, payload) {
 
   if (!oauthSession || oauthSession.provider !== provider) {
     return redirectWithError(res, 'OAuth session expired. Please try again.');
+  }
+
+  if (isHostedOAuthProvider(provider)) {
+    return completeHostedOAuth(req, res, provider, payload, oauthSession);
   }
 
   if (!payload.state || payload.state !== oauthSession.state) {
@@ -446,6 +456,26 @@ function startOAuth(provider) {
   return catchAsync(async (req, res) => {
     assertProvider(provider);
 
+    const redirectUri = getRedirectUri(req, provider);
+    const state = crypto.randomBytes(24).toString('hex');
+
+    if (isHostedOAuthProvider(provider)) {
+      setOAuthState(res, { provider, state, redirectUri });
+
+      try {
+        const { authUrl } = await getOAuthAuthorizationUrl(
+          provider,
+          { intent: 'authenticate', redirectUri },
+          client,
+        );
+        return res.redirect(authUrl);
+      } catch (err) {
+        console.error(`OAuth ${provider} start error:`, err);
+        clearOAuthState(res);
+        return redirectWithError(res, formatOAuthError(err));
+      }
+    }
+
     if (!isConfigured(provider)) {
       return res.status(400).json({
         error: {
@@ -456,12 +486,10 @@ function startOAuth(provider) {
       });
     }
 
-    const state = crypto.randomBytes(24).toString('hex');
-
     setOAuthState(res, {
       provider,
       state,
-      redirectUri: getRedirectUri(req, provider),
+      redirectUri,
     });
 
     return res.redirect(buildAuthUrl(req, provider, state));
@@ -483,6 +511,7 @@ function handleOAuthCallback(resolveProvider) {
 
     await completeOAuth(req, res, provider, {
       code: req.query.code,
+      voultCode: req.query.voult_code,
       state: req.query.state,
       error: req.query.error,
       errorDescription: req.query.error_description,
@@ -514,6 +543,6 @@ router.post(
   }),
 );
 
-export { SUPPORTED_PROVIDERS, isConfigured, getRedirectUri };
+export { SUPPORTED_PROVIDERS, HOSTED_OAUTH_PROVIDERS, isConfigured, getRedirectUri };
 
 export default router;

@@ -547,27 +547,42 @@ router.get(
   }),
 );
 
-// OAuth redirect flow config (credentials live in backend .env)
-router.get('/oauth/config', (req, res) => {
-  const backendUrl = process.env.OAUTH_REDIRECT_BASE_URL || `http://localhost:${process.env.PORT || 2000}`;
-  const providers = ['google', 'github', 'facebook', 'linkedin', 'microsoft', 'apple'];
+// OAuth redirect flow config. GitHub is Voult-hosted (dashboard enablement).
+router.get(
+  '/oauth/config',
+  catchAsync(async (_req, res) => {
+    const backendUrl = process.env.OAUTH_REDIRECT_BASE_URL || `http://localhost:${process.env.PORT || 2000}`;
+    const providers = ['google', 'github', 'facebook', 'linkedin', 'microsoft', 'apple'];
+    const hostedProviders = new Set(['github']);
 
-  const config = Object.fromEntries(
-    providers.map((provider) => [
-      provider,
-      {
-        configured: Boolean(
-          process.env[`${provider.toUpperCase()}_CLIENT_ID`] &&
-            process.env[`${provider.toUpperCase()}_CLIENT_SECRET`],
-        ),
-        callbackUrl:
-          process.env[`${provider.toUpperCase()}_REDIRECT_URI`] ||
-          `${backendUrl.replace(/\/$/, '')}/oauth/callback/${provider}`,
-      },
-    ]),
-  );
+    let visibility = {};
+    try {
+      const result = await client.get(`/api/provider-visibility/${client.clientId}`);
+      visibility = result?.providers || {};
+    } catch {
+      visibility = {};
+    }
 
-  res.json(config);
-});
+    const config = Object.fromEntries(
+      providers.map((provider) => [
+        provider,
+        {
+          hosted: hostedProviders.has(provider),
+          configured: hostedProviders.has(provider)
+            ? Boolean(visibility[provider])
+            : Boolean(
+                process.env[`${provider.toUpperCase()}_CLIENT_ID`] &&
+                  process.env[`${provider.toUpperCase()}_CLIENT_SECRET`],
+              ),
+          callbackUrl:
+            process.env[`${provider.toUpperCase()}_REDIRECT_URI`] ||
+            `${backendUrl.replace(/\/$/, '')}/oauth/callback/${provider}`,
+        },
+      ]),
+    );
+
+    res.json(config);
+  }),
+);
 
 export default router;

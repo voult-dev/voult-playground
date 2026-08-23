@@ -80,7 +80,8 @@ export default function OAuthPage() {
       <section className="form-card">
         <h2>Sign in with provider</h2>
         <p className="endpoint-hint">
-          Redirect flow → callback → POST /api/auth/{'{provider}'}/authenticate (find-or-create)
+          GitHub is hosted by Voult (playground → Voult → GitHub → Voult → playground). Other
+          providers still use local .env credentials → POST /api/auth/{'{provider}'}/authenticate.
         </p>
 
         <div className="oauth-buttons">
@@ -101,10 +102,17 @@ export default function OAuthPage() {
           {OAUTH_PROVIDERS.map((item) => (
             <div key={item.id} className="oauth-config-item">
               <strong>{item.id}</strong>
+              {config[item.id]?.hosted && (
+                <span className="badge badge-muted">Voult hosted</span>
+              )}
               {config[item.id]?.configured ? (
-                <span className="badge badge-ok">Configured</span>
+                <span className="badge badge-ok">
+                  {config[item.id]?.hosted ? 'Enabled in Voult' : 'Configured'}
+                </span>
               ) : (
-                <span className="badge badge-muted">Not configured</span>
+                <span className="badge badge-muted">
+                  {config[item.id]?.hosted ? 'Disabled in Voult' : 'Not configured'}
+                </span>
               )}
               <code className="callback-url">{config[item.id]?.callbackUrl}</code>
             </div>
