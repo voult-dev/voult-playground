@@ -16,7 +16,7 @@ export function createApp() {
     'http://localhost:2000',
     'http://127.0.0.1:5173',
   ].filter(Boolean);
-
+  
   app.use(
     cors({
       origin(origin, callback) {

@@ -18,7 +18,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "voult-sdk": "^0.0.4"
+    "voult-sdk": "file:../voult-sdk"
   },
   "devDependencies": {
     "nodemon": "^3.1.14",
