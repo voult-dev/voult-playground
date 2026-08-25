@@ -1,3 +1,11 @@
+import { createVoultRouter, loadConfigFromEnv } from '@voult/express';
+
+const voultConfig = loadConfigFromEnv();
+
+// Must match what the frontend calls. If fetch('/api/auth/email-login'), mount here:
+router.use('/api/auth', createVoultRouter({ config: voultConfig }));
+
+
 import { Router } from 'express';
 import client from '../config/client.js';
 import catchAsync from '../utils/catchAsync.js';
