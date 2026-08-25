@@ -1,9 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import client from '../config/client.js';
 import catchAsync from '../utils/catchAsync.js';
 import {
-  persistVoultAuth,
   persistMfaPending,
   setOAuthState,
   readOAuthState,
@@ -106,7 +104,7 @@ async function completeOAuth(req, res, provider, payload) {
     const result = await exchangeOAuthCode(
       payload.voultCode,
       { redirectUri: oauthSession.redirectUri || getRedirectUri(req, provider) },
-      client,
+      req.voult,
     );
 
     clearOAuthState(res);
@@ -116,7 +114,6 @@ async function completeOAuth(req, res, provider, payload) {
       return redirectWithMfa(res);
     }
 
-    persistVoultAuth(res, result);
     return redirectSuccess(res);
   } catch (err) {
     console.error(`OAuth ${provider} error:`, err);
@@ -137,7 +134,7 @@ function startOAuth(provider) {
       const { authUrl } = await getOAuthAuthorizationUrl(
         provider,
         { intent: 'authenticate', redirectUri },
-        client,
+        req.voult,
       );
       return res.redirect(authUrl);
     } catch (err) {

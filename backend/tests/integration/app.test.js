@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import '../mocks.js';
 import { mockClient } from '../mocks.js';
@@ -10,6 +10,12 @@ describe('BFF HTTP routes', () => {
 
   beforeAll(() => {
     app = createApp();
+  });
+
+  beforeEach(() => {
+    mockClient.accessToken = null;
+    mockClient.refreshToken = null;
+    mockClient.user = null;
   });
 
   it('GET /health returns ok', async () => {

@@ -1,6 +1,10 @@
 import { readVoultTokens } from '../utils/voultTokens.js';
 
 export default function requireAuth(req, res, next) {
+  if (req.voult?.accessToken || req.voult?.refreshToken) {
+    return next();
+  }
+
   const { accessToken, refreshToken } = readVoultTokens(req);
 
   if (!accessToken && !refreshToken) {

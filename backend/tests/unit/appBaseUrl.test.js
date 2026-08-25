@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getFrontendUrl, getAppBaseUrl } from '../../src/utils/appBaseUrl.js';
 
 describe('getFrontendUrl', () => {
-  const envKeys = ['FRONTEND_URL', 'APP_BASE_URL'];
+  const envKeys = ['FRONTEND_URL', 'VOULT_APP_URL', 'APP_BASE_URL'];
   const saved = {};
 
   beforeEach(() => {

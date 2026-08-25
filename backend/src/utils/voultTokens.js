@@ -29,19 +29,20 @@ function cookieOptions(maxAge) {
 
 export function readVoultTokens(req) {
   let user = null;
+  const userCookie = req.signedCookies?.[USER_COOKIE] || req.cookies?.[USER_COOKIE];
 
-  if (req.cookies?.[USER_COOKIE]) {
+  if (userCookie) {
     try {
-      user = JSON.parse(req.cookies[USER_COOKIE]);
+      user = typeof userCookie === 'string' ? JSON.parse(userCookie) : userCookie;
     } catch {
       user = null;
     }
   }
 
   return {
-    accessToken: req.cookies?.[ACCESS_COOKIE] || null,
-    refreshToken: req.cookies?.[REFRESH_COOKIE] || null,
-    mfaPendingToken: req.cookies?.[MFA_COOKIE] || null,
+    accessToken: req.signedCookies?.[ACCESS_COOKIE] || req.cookies?.[ACCESS_COOKIE] || null,
+    refreshToken: req.signedCookies?.[REFRESH_COOKIE] || req.cookies?.[REFRESH_COOKIE] || null,
+    mfaPendingToken: req.signedCookies?.[MFA_COOKIE] || req.cookies?.[MFA_COOKIE] || null,
     user,
   };
 }

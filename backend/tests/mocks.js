@@ -5,22 +5,73 @@ export const mockClient = {
   clientSecret: 'secret_test',
   accessToken: null,
   refreshToken: null,
+  user: null,
   get: vi.fn(),
   post: vi.fn(),
   patch: vi.fn(),
   delete: vi.fn(),
-  setSession: vi.fn(),
-  clearSession: vi.fn(),
-  isAuthenticated: vi.fn(() => false),
-  getCurrentUser: vi.fn(() => null),
+  setSession: vi.fn((user, accessToken, refreshToken) => {
+    mockClient.user = user;
+    mockClient.accessToken = accessToken;
+    mockClient.refreshToken = refreshToken;
+  }),
+  clearSession: vi.fn(() => {
+    mockClient.user = null;
+    mockClient.accessToken = null;
+    mockClient.refreshToken = null;
+  }),
+  isAuthenticated: vi.fn(() => Boolean(mockClient.accessToken && mockClient.user)),
+  getCurrentUser: vi.fn(() => mockClient.user),
 };
 
 vi.mock('../src/config/client.js', () => ({
   default: mockClient,
 }));
 
+vi.mock('@voult/express', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    createVoultMiddleware: () => (req, _res, next) => {
+      req.voultConfig = {
+        clientId: mockClient.clientId,
+        clientSecret: mockClient.clientSecret,
+        session: { strategy: 'cookie' },
+      };
+      req.voult = mockClient;
+      next();
+    },
+  };
+});
+
 vi.mock('voult-sdk', () => ({
-  VoultClient: vi.fn(),
+  VoultClient: vi.fn(() => mockClient),
+  DEFAULT_BASE_URL: 'https://api.voult.dev',
+  VoultError: class VoultError extends Error {
+    constructor(message, code, status) {
+      super(message);
+      this.name = 'VoultError';
+      this.code = code;
+      this.status = status;
+    }
+  },
+  AuthenticationError: class AuthenticationError extends Error {
+    constructor(message) {
+      super(message);
+      this.name = 'AuthenticationError';
+      this.code = 'AUTHENTICATION_ERROR';
+      this.status = 401;
+    }
+  },
+  ValidationError: class ValidationError extends Error {
+    constructor(message, field) {
+      super(message);
+      this.name = 'ValidationError';
+      this.code = 'VALIDATION_ERROR';
+      this.status = 400;
+      this.field = field;
+    }
+  },
   signUpWithEmailAndPassword: vi.fn(),
   signUpWithUsernameAndPassword: vi.fn(),
   signInWithEmailAndPassword: vi.fn(),

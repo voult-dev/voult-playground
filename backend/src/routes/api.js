@@ -1,31 +1,8 @@
-import { createVoultRouter, loadConfigFromEnv } from '@voult/express';
-
-const voultConfig = loadConfigFromEnv();
-
-// Must match what the frontend calls. If fetch('/api/auth/email-login'), mount here:
-router.use('/api/auth', createVoultRouter({ config: voultConfig }));
-
-
 import { Router } from 'express';
-import client from '../config/client.js';
-import catchAsync from '../utils/catchAsync.js';
-import requireAuth from '../middleware/requireAuth.js';
+import { createVoultRouter, loadConfigFromEnv } from '@voult/express';
 import {
-  persistVoultAuth,
-  clearVoultAuth,
-  persistMfaPending,
-  readVoultTokens,
-} from '../utils/voultTokens.js';
-import { getFrontendUrl } from '../utils/appBaseUrl.js';
-import { sendSanitizedGet, sanitizeUserProfile, sendSanitizedJson } from '../utils/sanitizeResponse.js';
-import {
-  signUpWithEmailAndPassword,
-  signUpWithUsernameAndPassword,
-  signInWithEmailAndPassword,
-  signInWithUsernameAndPassword,
   signInWithEmailLink,
   verifyEmailLink,
-  signOut,
   deleteUser,
   getCurrentUser,
   updateProfile,
@@ -73,8 +50,18 @@ import {
   unlinkOAuthProvider,
   setPassword,
 } from 'voult-sdk';
+import catchAsync from '../utils/catchAsync.js';
+import requireAuth from '../middleware/requireAuth.js';
+import { persistMfaPending, readVoultTokens } from '../utils/voultTokens.js';
+import { getFrontendUrl } from '../utils/appBaseUrl.js';
+import { sendSanitizedGet, sanitizeUserProfile, sendSanitizedJson } from '../utils/sanitizeResponse.js';
 
 const router = Router();
+const voultConfig = loadConfigFromEnv({
+  overrides: {
+    appUrl: process.env.VOULT_APP_URL || process.env.APP_BASE_URL || process.env.FRONTEND_URL,
+  },
+});
 
 function handleAuthResult(req, res, result) {
   if (result?.mfaRequired) {
@@ -87,40 +74,29 @@ function handleAuthResult(req, res, result) {
     });
   }
 
-  persistVoultAuth(res, result);
   return sendSanitizedJson(res, result);
 }
 
-// Session status
+// Playground session overlay: keep mfaPending for the UI.
 router.get(
   '/auth/session',
   catchAsync(async (req, res) => {
+    const client = req.voult;
     const tokens = readVoultTokens(req);
 
     if (!client.accessToken && client.refreshToken) {
       try {
-        const result = await refreshSession(client);
-        persistVoultAuth(res, {
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken,
-          user: client.getCurrentUser(),
-        });
+        await refreshSession(client);
       } catch {
-        clearVoultAuth(res);
         client.clearSession();
       }
     }
 
-    if (client.accessToken && !client.getCurrentUser()) {
+    const localUser = client.getCurrentUser();
+    if (client.accessToken && !localUser?.email && !localUser?.id) {
       try {
-        const user = await getCurrentUser(client);
-        persistVoultAuth(res, {
-          accessToken: client.accessToken,
-          refreshToken: client.refreshToken,
-          user,
-        });
+        await getCurrentUser(client);
       } catch {
-        clearVoultAuth(res);
         client.clearSession();
       }
     }
@@ -133,71 +109,12 @@ router.get(
   }),
 );
 
-// Password auth
-router.post(
-  '/auth/register',
-  catchAsync(async (req, res) => {
-    const { email, password, fullName, username } = req.body;
-    const options = {};
-    if (fullName) options.fullName = fullName;
-    if (username) options.username = username;
-    const result = await signUpWithEmailAndPassword(email, password, options, client);
-    handleAuthResult(req, res, result);
-  }),
-);
-
-router.post(
-  '/auth/username-register',
-  catchAsync(async (req, res) => {
-    const { username, password, fullName, email } = req.body;
-    const options = {};
-    if (fullName) options.fullName = fullName;
-    if (email) options.email = email;
-    const result = await signUpWithUsernameAndPassword(username, password, options, client);
-    handleAuthResult(req, res, result);
-  }),
-);
-
-router.post(
-  '/auth/email-login',
-  catchAsync(async (req, res) => {
-    const { email, password } = req.body;
-    const result = await signInWithEmailAndPassword(email, password, client);
-    handleAuthResult(req, res, result);
-  }),
-);
-
-router.post(
-  '/auth/username-login',
-  catchAsync(async (req, res) => {
-    const { username, password } = req.body;
-    const result = await signInWithUsernameAndPassword(username, password, client);
-    handleAuthResult(req, res, result);
-  }),
-);
-
-router.post(
-  '/auth/logout',
-  requireAuth,
-  catchAsync(async (req, res) => {
-    try {
-      await signOut(client);
-    } catch {
-      // Clear local cookies even if remote logout fails
-    }
-    client.clearSession();
-    clearVoultAuth(res);
-    res.json({ message: 'Logged out successfully' });
-  }),
-);
-
-// MFA
 router.post(
   '/auth/mfa/verify',
   catchAsync(async (req, res) => {
     const { mfaPendingToken, mfaToken } = req.body;
     const token = mfaPendingToken || readVoultTokens(req).mfaPendingToken;
-    const result = await verifyMfaLogin(token, mfaToken, client);
+    const result = await verifyMfaLogin(token, mfaToken, req.voult);
     handleAuthResult(req, res, result);
   }),
 );
@@ -205,8 +122,8 @@ router.post(
 router.get(
   '/auth/mfa/status',
   requireAuth,
-  catchAsync(async (_req, res) => {
-    const result = await getMfaStatus(client);
+  catchAsync(async (req, res) => {
+    const result = await getMfaStatus(req.voult);
     sendSanitizedGet(res, 'auth/mfa/status', result);
   }),
 );
@@ -214,8 +131,8 @@ router.get(
 router.post(
   '/auth/mfa/setup',
   requireAuth,
-  catchAsync(async (_req, res) => {
-    const result = await setupMfa(client);
+  catchAsync(async (req, res) => {
+    const result = await setupMfa(req.voult);
     res.json(result);
   }),
 );
@@ -225,7 +142,7 @@ router.post(
   requireAuth,
   catchAsync(async (req, res) => {
     const { token } = req.body;
-    const result = await enableMfa(token, client);
+    const result = await enableMfa(token, req.voult);
     res.json(result);
   }),
 );
@@ -235,7 +152,7 @@ router.post(
   requireAuth,
   catchAsync(async (req, res) => {
     const { password, mfaToken } = req.body;
-    const result = await disableMfa(password, mfaToken, client);
+    const result = await disableMfa(password, mfaToken, req.voult);
     res.json(result);
   }),
 );
@@ -245,16 +162,15 @@ router.post(
   requireAuth,
   catchAsync(async (req, res) => {
     const { token } = req.body;
-    const result = await regenerateMfaBackupCodes(token, client);
+    const result = await regenerateMfaBackupCodes(token, req.voult);
     res.json(result);
   }),
 );
 
-// WebAuthn
 router.get(
   '/auth/webauthn/compatibility',
-  catchAsync(async (_req, res) => {
-    const result = await getWebAuthnCompatibility(client);
+  catchAsync(async (req, res) => {
+    const result = await getWebAuthnCompatibility(req.voult);
     sendSanitizedGet(res, 'auth/webauthn/compatibility', result);
   }),
 );
@@ -264,7 +180,7 @@ router.post(
   requireAuth,
   catchAsync(async (req, res) => {
     const { deviceName } = req.body;
-    const result = await createPasskeyRegistrationOptions({ deviceName }, client);
+    const result = await createPasskeyRegistrationOptions({ deviceName }, req.voult);
     res.json(result);
   }),
 );
@@ -274,7 +190,7 @@ router.post(
   requireAuth,
   catchAsync(async (req, res) => {
     const { credential, deviceName } = req.body;
-    const result = await verifyPasskeyRegistration(credential, { deviceName }, client);
+    const result = await verifyPasskeyRegistration(credential, { deviceName }, req.voult);
     res.json(result);
   }),
 );
@@ -283,7 +199,7 @@ router.post(
   '/auth/webauthn/login/options',
   catchAsync(async (req, res) => {
     const { email } = req.body;
-    const result = await createPasskeyLoginOptions({ email }, client);
+    const result = await createPasskeyLoginOptions({ email }, req.voult);
     res.json(result);
   }),
 );
@@ -292,7 +208,7 @@ router.post(
   '/auth/webauthn/login/verify',
   catchAsync(async (req, res) => {
     const { credential } = req.body;
-    const result = await verifyPasskeyLogin(credential, client);
+    const result = await verifyPasskeyLogin(credential, req.voult);
     handleAuthResult(req, res, result);
   }),
 );
@@ -300,8 +216,8 @@ router.post(
 router.get(
   '/auth/webauthn/credentials',
   requireAuth,
-  catchAsync(async (_req, res) => {
-    const result = await listPasskeys(client);
+  catchAsync(async (req, res) => {
+    const result = await listPasskeys(req.voult);
     sendSanitizedGet(res, 'auth/webauthn/credentials', result);
   }),
 );
@@ -311,7 +227,7 @@ router.patch(
   requireAuth,
   catchAsync(async (req, res) => {
     const { deviceName } = req.body;
-    const result = await updatePasskey(req.params.id, deviceName, client);
+    const result = await updatePasskey(req.params.id, deviceName, req.voult);
     res.json(result);
   }),
 );
@@ -320,17 +236,16 @@ router.delete(
   '/auth/webauthn/credentials/:id',
   requireAuth,
   catchAsync(async (req, res) => {
-    const result = await deletePasskey(req.params.id, client);
+    const result = await deletePasskey(req.params.id, req.voult);
     res.json(result);
   }),
 );
 
-// Sessions
 router.get(
   '/sessions',
   requireAuth,
-  catchAsync(async (_req, res) => {
-    const result = await listSessions(client);
+  catchAsync(async (req, res) => {
+    const result = await listSessions(req.voult);
     sendSanitizedGet(res, 'sessions', result);
   }),
 );
@@ -339,7 +254,7 @@ router.get(
   '/sessions/revoke/:sessionId',
   requireAuth,
   catchAsync(async (req, res) => {
-    const result = await revokeSession(req.params.sessionId, client);
+    const result = await revokeSession(req.params.sessionId, req.voult);
     res.json(result);
   }),
 );
@@ -347,23 +262,17 @@ router.get(
 router.post(
   '/sessions/refresh',
   requireAuth,
-  catchAsync(async (_req, res) => {
-    const result = await refreshSession(client);
-    persistVoultAuth(res, {
-      user: client.getCurrentUser(),
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-    });
+  catchAsync(async (req, res) => {
+    const result = await refreshSession(req.voult);
     res.json(result);
   }),
 );
 
-// User
 router.get(
   '/user/me',
   requireAuth,
-  catchAsync(async (_req, res) => {
-    const profile = await getCurrentUser(client);
+  catchAsync(async (req, res) => {
+    const profile = await getCurrentUser(req.voult);
     sendSanitizedGet(res, 'user/me', profile);
   }),
 );
@@ -373,14 +282,7 @@ router.patch(
   requireAuth,
   catchAsync(async (req, res) => {
     const { fullName } = req.body;
-    const result = await updateProfile({ fullName }, client);
-    if (client.getCurrentUser()) {
-      persistVoultAuth(res, {
-        accessToken: client.accessToken,
-        refreshToken: client.refreshToken,
-        user: client.getCurrentUser(),
-      });
-    }
+    const result = await updateProfile({ fullName }, req.voult);
     sendSanitizedJson(res, result);
   }),
 );
@@ -389,7 +291,7 @@ router.get(
   '/user/verify-email',
   catchAsync(async (req, res) => {
     const { token, appId } = req.query;
-    const result = await verifyEmail(token, { appId }, client);
+    const result = await verifyEmail(token, { appId }, req.voult);
     res.json(result);
   }),
 );
@@ -398,7 +300,7 @@ router.post(
   '/user/forgot-password',
   catchAsync(async (req, res) => {
     const { email } = req.body;
-    const result = await sendPasswordResetEmail(email, client);
+    const result = await sendPasswordResetEmail(email, req.voult);
     res.json(result);
   }),
 );
@@ -407,7 +309,7 @@ router.post(
   '/user/reset-password',
   catchAsync(async (req, res) => {
     const { token, password, appId } = req.body;
-    const result = await resetPassword(token, password, { appId }, client);
+    const result = await resetPassword(token, password, { appId }, req.voult);
     res.json(result);
   }),
 );
@@ -416,9 +318,7 @@ router.post(
   '/user/disable',
   requireAuth,
   catchAsync(async (req, res) => {
-    const result = await deleteUser(client);
-    client.clearSession();
-    clearVoultAuth(res);
+    const result = await deleteUser(req.voult);
     res.json(result);
   }),
 );
@@ -426,19 +326,18 @@ router.post(
 router.post(
   '/user/reenable',
   requireAuth,
-  catchAsync(async (_req, res) => {
-    const result = await reenableAccount(client);
+  catchAsync(async (req, res) => {
+    const result = await reenableAccount(req.voult);
     res.json(result);
   }),
 );
 
-// Magic link
 router.post(
   '/send-magic-link',
   catchAsync(async (req, res) => {
     const { email, redirectUri } = req.body;
     const uri = redirectUri?.trim() || `${getFrontendUrl()}/magic-callback`;
-    const result = await signInWithEmailLink(email, { redirectUri: uri }, client);
+    const result = await signInWithEmailLink(email, { redirectUri: uri }, req.voult);
     res.json({ ...result, redirectUriUsed: uri });
   }),
 );
@@ -447,12 +346,11 @@ router.post(
   '/validate-magic-link',
   catchAsync(async (req, res) => {
     const { token } = req.body;
-    const result = await verifyEmailLink(token, client);
+    const result = await verifyEmailLink(token, req.voult);
     handleAuthResult(req, res, result);
   }),
 );
 
-// OAuth providers
 const OAUTH_HANDLERS = {
   google: {
     login: signInWithGoogle,
@@ -491,19 +389,21 @@ for (const provider of Object.keys(OAUTH_HANDLERS)) {
     router.post(
       `/auth/${provider}/${action}`,
       catchAsync(async (req, res) => {
-        const result = await OAUTH_HANDLERS[provider][action](req.body, client);
+        const result = await OAUTH_HANDLERS[provider][action](req.body, req.voult);
         handleAuthResult(req, res, { ...result, provider });
       }),
     );
   }
 }
 
-// OAuth linking
+// Password BFF from @voult/express: /register, /email-login, /logout, etc.
+router.use('/auth', createVoultRouter({ config: voultConfig }));
+
 router.post(
   '/oauth/:provider/link',
   requireAuth,
   catchAsync(async (req, res) => {
-    const result = await linkOAuthProvider(req.params.provider, client);
+    const result = await linkOAuthProvider(req.params.provider, req.voult);
     res.json(result);
   }),
 );
@@ -511,8 +411,8 @@ router.post(
 router.get(
   '/me/oauth-accounts',
   requireAuth,
-  catchAsync(async (_req, res) => {
-    const result = await getLinkedOAuthProviders(client);
+  catchAsync(async (req, res) => {
+    const result = await getLinkedOAuthProviders(req.voult);
     sendSanitizedGet(res, 'me/oauth-accounts', result);
   }),
 );
@@ -521,7 +421,7 @@ router.delete(
   '/me/oauth-accounts/:provider',
   requireAuth,
   catchAsync(async (req, res) => {
-    const result = await unlinkOAuthProvider(req.params.provider, client);
+    const result = await unlinkOAuthProvider(req.params.provider, req.voult);
     res.json(result);
   }),
 );
@@ -531,40 +431,37 @@ router.post(
   requireAuth,
   catchAsync(async (req, res) => {
     const { password } = req.body;
-    const result = await setPassword(password, client);
+    const result = await setPassword(password, req.voult);
     res.json(result);
   }),
 );
 
-// Audit logs (raw HTTP — not in SDK)
 router.get(
   '/audit-logs/me',
   requireAuth,
-  catchAsync(async (_req, res) => {
-    const result = await client.get('/api/audit-logs/me', { requireAuth: true });
+  catchAsync(async (req, res) => {
+    const result = await req.voult.get('/api/audit-logs/me', { requireAuth: true });
     sendSanitizedGet(res, 'audit-logs/me', result);
   }),
 );
 
-// Provider visibility
 router.get(
   '/provider-visibility',
-  catchAsync(async (_req, res) => {
-    const result = await client.get(`/api/provider-visibility/${client.clientId}`);
+  catchAsync(async (req, res) => {
+    const result = await req.voult.get(`/api/provider-visibility/${req.voult.clientId}`);
     sendSanitizedGet(res, 'provider-visibility', result);
   }),
 );
 
-// OAuth redirect flow config. Every provider is Voult-hosted; playground buttons stay enabled.
 router.get(
   '/oauth/config',
-  catchAsync(async (_req, res) => {
+  catchAsync(async (req, res) => {
     const backendUrl = process.env.OAUTH_REDIRECT_BASE_URL || `http://localhost:${process.env.PORT || 2000}`;
     const providers = ['google', 'github', 'facebook', 'linkedin', 'microsoft', 'apple'];
 
     let visibility = {};
     try {
-      const result = await client.get(`/api/provider-visibility/${client.clientId}`);
+      const result = await req.voult.get(`/api/provider-visibility/${req.voult.clientId}`);
       visibility = result?.providers || {};
     } catch {
       visibility = {};

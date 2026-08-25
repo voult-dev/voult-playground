@@ -1,7 +1,12 @@
 import crypto from 'crypto';
 
 export function getCookieSecret() {
-  return process.env.SESSION_SECRET || process.env.SECRET || 'voult-playground-dev-secret';
+  return (
+    process.env.VOULT_SESSION_SECRET ||
+    process.env.SESSION_SECRET ||
+    process.env.SECRET ||
+    'voult-playground-dev-secret'
+  );
 }
 
 export function signPayload(payload, secret = getCookieSecret()) {
