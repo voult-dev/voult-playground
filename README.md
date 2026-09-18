@@ -2,10 +2,12 @@
 
 Interactive playground for testing every authentication endpoint documented in `[docs/integration/VOULT_AUTH.md](docs/integration/VOULT_AUTH.md)`.
 
+Password auth, session cookies, and error handling come from [`@voult/express`](../voult-sdk/packages/express) (`createVoultRouter()`, mounted at `/api/auth` in `backend/src/routes/api.js`) — this repo is a **reference consumer** of that package, not the place to copy BFF code from. MFA, WebAuthn, OAuth, and social login stay local here until they graduate into the package (Phase 2+). Integrators should start at [`voult`'s quick-start doc](../voult/docs/integration/QUICK_START.md) or the standalone [`voult-demo`](../voult-demo) app instead.
+
 ## Architecture
 
 ```
-Browser (React)  →  Playground BFF (Express)  →  Voult API
+Browser (React)  →  Playground BFF (Express, using @voult/express)  →  Voult API
                          ↑
                    holds CLIENT_SECRET
                    stores tokens in session cookie
@@ -15,15 +17,15 @@ The browser never sees your Voult client secret. The BFF proxies all auth calls 
 
 ## Setup
 
-1. Copy your Voult app credentials into `backend/.env`:
+1. Copy `backend/.env.example` to `backend/.env` and fill in your Voult app credentials (canonical `VOULT_*` names — legacy `CLIENT_ID`/`CLIENT_SECRET`/`SESSION_SECRET` still work with a deprecation warning):
 
 ```bash
 PORT=2000
 VOULT_BASE_URL=https://api.voult.dev   # or your local Voult instance
 APP_BASE_URL=http://localhost:5173
-CLIENT_ID=app_...
-CLIENT_SECRET=...
-SESSION_SECRET=change-me
+VOULT_CLIENT_ID=app_...
+VOULT_CLIENT_SECRET=...
+VOULT_SESSION_SECRET=change-me
 ```
 
 1. Add `http://localhost:5173/magic-callback` to your Voult app's allowed callback URLs if testing magic links.
