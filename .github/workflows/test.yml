@@ -1,0 +1,20 @@
+name: test
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # backend/frontend depend on @voult/express and voult-sdk via
+      # `file:../../voult-sdk/...` — check that repo out as a sibling so the
+      # relative paths resolve the same way they do locally.
+      - uses: actions/checkout@v4
+        with:
+          repository: voult-dev/voult-sdk
+          path: ../voult-sdk
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci --prefix backend
+      - run: npm ci --prefix frontend
+      - run: npm run test:backend
+      - run: npm run test:frontend
