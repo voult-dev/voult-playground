@@ -8,7 +8,7 @@ import {
   clearOAuthState,
 } from '../utils/voultTokens.js';
 import { getFrontendUrl } from '../utils/appBaseUrl.js';
-import { getOAuthAuthorizationUrl, exchangeOAuthCode } from 'voult-sdk';
+import { getOAuthAuthorizationUrl, exchangeOAuthCode } from '@voult/sdk';
 
 const router = Router();
 

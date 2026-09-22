@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import '../mocks.js';
 import { mockClient } from '../mocks.js';
-import { getOAuthAuthorizationUrl } from 'voult-sdk';
+import { getOAuthAuthorizationUrl } from '@voult/sdk';
 import { createApp } from '../../src/app.js';
 
 describe('BFF HTTP routes', () => {

@@ -49,7 +49,7 @@ import {
   getLinkedOAuthProviders,
   unlinkOAuthProvider,
   setPassword,
-} from 'voult-sdk';
+} from '@voult/sdk';
 import catchAsync from '../utils/catchAsync.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { persistMfaPending, readVoultTokens } from '../utils/voultTokens.js';

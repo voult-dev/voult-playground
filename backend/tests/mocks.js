@@ -44,7 +44,7 @@ vi.mock('@voult/express', async (importOriginal) => {
   };
 });
 
-vi.mock('voult-sdk', () => ({
+vi.mock('@voult/sdk', () => ({
   VoultClient: vi.fn(() => mockClient),
   DEFAULT_BASE_URL: 'https://api.voult.dev',
   VoultError: class VoultError extends Error {

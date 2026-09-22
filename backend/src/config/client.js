@@ -1,4 +1,4 @@
-import { VoultClient } from 'voult-sdk';
+import { VoultClient } from '@voult/sdk';
 
 const client = new VoultClient({
   clientId: process.env.VOULT_CLIENT_ID || process.env.CLIENT_ID,
