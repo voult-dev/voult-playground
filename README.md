@@ -21,7 +21,7 @@ The browser never sees your Voult client secret. The BFF proxies all auth calls 
 
 ```bash
 PORT=2000
-VOULT_BASE_URL=https://api.voult.dev   # or your local Voult instance
+VOULT_BASE_URL=                        # optional: @voult/sdk ≥0.1.2 defaults to https://staging.voult.dev; set for a local Voult instance
 APP_BASE_URL=http://localhost:5173
 VOULT_CLIENT_ID=app_...
 VOULT_CLIENT_SECRET=...
@@ -32,7 +32,7 @@ VOULT_SESSION_SECRET=change-me
 
 2. One-click OAuth is **Voult-hosted** for every provider (Google, GitHub, Facebook, LinkedIn, Microsoft, Apple). Configure client id/secret on the Voult App, not in the playground `.env`.
 
-Register this callback on each provider console (local default):
+Register Voult's hosted callback on each provider console (`<VOULT_BASE_URL>/api/oauth/<provider>/callback`, e.g. `https://staging.voult.dev/api/oauth/github/callback`; local default shown below):
 
 - `http://localhost:3000/api/oauth/google/callback`
 - `http://localhost:3000/api/oauth/github/callback`
