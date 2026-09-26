@@ -1,42 +1,22 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { api } from '../lib/api';
+import { VoultProvider, useSession } from '@voult/react';
+import { API_BASE } from '../lib/api';
 
-const AuthContext = createContext(null);
+// Session state comes from @voult/react (GET /api/auth/session via @voult/express).
+// useAuth() keeps the shape the playground pages already use.
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState({ authenticated: false, user: null, mfaPending: false });
-  const [loading, setLoading] = useState(true);
-
-  const refreshSession = useCallback(async () => {
-    try {
-      const data = await api('/auth/session');
-      setSession(data);
-    } catch {
-      setSession({ authenticated: false, user: null, mfaPending: false });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    refreshSession();
-  }, [refreshSession]);
-
-  const value = useMemo(
-    () => ({
-      ...session,
-      loading,
-      refreshSession,
-      setMfaPending: (pending) => setSession((s) => ({ ...s, mfaPending: pending })),
-    }),
-    [session, loading, refreshSession],
-  );
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <VoultProvider apiBase={`${API_BASE}/auth`}>{children}</VoultProvider>;
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
+  const { status, user, refresh } = useSession();
+  return {
+    authenticated: status === 'authenticated',
+    user,
+    mfaPending: status === 'mfa_required',
+    loading: status === 'loading',
+    refreshSession: refresh,
+    // The server now tracks a pending MFA sign-in in a cookie, so re-reading the session is enough.
+    setMfaPending: () => refresh(),
+  };
 }

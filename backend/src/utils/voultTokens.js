@@ -1,11 +1,9 @@
 import { sanitizeUserProfile } from './sanitizeResponse.js';
-import { signPayload, verifySignedPayload, getCookieSecret } from './signedCookie.js';
 
 export const ACCESS_COOKIE = 'voult_access';
 export const REFRESH_COOKIE = 'voult_refresh';
 export const USER_COOKIE = 'voult_user';
 export const MFA_COOKIE = 'voult_mfa_pending';
-export const OAUTH_COOKIE = 'voult_oauth';
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -94,30 +92,4 @@ export function clearVoultAuth(res) {
 export function persistMfaPending(res, mfaPendingToken) {
   if (!res || !mfaPendingToken) return;
   res.cookie(MFA_COOKIE, mfaPendingToken, cookieOptions(TEN_MINUTES_MS));
-}
-
-export function setOAuthState(res, { provider, state, redirectUri }) {
-  const payload = {
-    provider,
-    state,
-    redirectUri,
-    exp: Date.now() + TEN_MINUTES_MS,
-  };
-
-  res.cookie(OAUTH_COOKIE, signPayload(payload), cookieOptions(TEN_MINUTES_MS));
-}
-
-export function readOAuthState(req) {
-  const raw = req.cookies?.[OAUTH_COOKIE];
-  if (!raw) return null;
-
-  const payload = verifySignedPayload(raw, getCookieSecret());
-  if (!payload || payload.exp < Date.now()) return null;
-
-  return payload;
-}
-
-export function clearOAuthState(res) {
-  if (!res) return;
-  res.clearCookie(OAUTH_COOKIE, clearCookieOptions());
 }

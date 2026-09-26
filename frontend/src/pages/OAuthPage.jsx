@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { OAuthButton, getOAuthRedirectResult, useOAuthProviders } from '@voult/react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import ResponsePanel, { useApiAction } from '../components/ResponsePanel';
-
-const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || 'http://localhost:2000';
 
 const OAUTH_PROVIDERS = [
   { id: 'google', label: 'Continue with Google', className: 'btn-google' },
@@ -26,28 +25,16 @@ const manualFields = {
 
 export default function OAuthPage() {
   const [searchParams] = useSearchParams();
-  const { refreshSession } = useAuth();
-  const { data, error, loading, run, reset } = useApiAction();
-  const [config, setConfig] = useState({});
+  const { refreshSession, authenticated } = useAuth();
+  const { data, error, loading, run } = useApiAction();
+  const { providers: readyProviders, loading: providersLoading, error: providersError } = useOAuthProviders();
   const [intent, setIntent] = useState('authenticate');
   const [provider, setProvider] = useState('google');
   const [manualForm, setManualForm] = useState({});
 
-  useEffect(() => {
-    api('/oauth/config')
-      .then(setConfig)
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (searchParams.get('error')) reset();
-  }, [searchParams, reset]);
-
-  const oauthError = searchParams.get('error');
-
-  const startOAuth = (selectedProvider) => {
-    window.location.href = `${API_ORIGIN}/oauth/${selectedProvider}/start`;
-  };
+  // @voult/express redirects failures here as ?voult_error=…, and linking as ?voult_linked=…
+  const redirect = getOAuthRedirectResult(`?${searchParams.toString()}`);
+  const readyButtons = OAUTH_PROVIDERS.filter((item) => readyProviders.includes(item.id));
 
   const submitManual = async (e) => {
     e.preventDefault();
@@ -59,7 +46,6 @@ export default function OAuthPage() {
     return result;
   };
 
-  const linkProvider = () => run(() => api(`/oauth/${provider}/link`, { method: 'POST' }));
   const loadLinked = () => run(() => api('/me/oauth-accounts'));
   const unlinkProvider = () =>
     run(() => api(`/me/oauth-accounts/${provider}`, { method: 'DELETE' }));
@@ -71,9 +57,18 @@ export default function OAuthPage() {
         <p>One-click sign-in for every Voult OAuth provider.</p>
       </header>
 
-      {oauthError && (
+      {redirect.error && (
         <section className="form-card danger-zone">
-          <p className="field-error">OAuth error: {oauthError}</p>
+          <p className="field-error">
+            OAuth error <code>{redirect.error.code}</code>
+            {redirect.error.description ? `: ${redirect.error.description}` : ''}
+          </p>
+        </section>
+      )}
+
+      {redirect.linked && (
+        <section className="form-card">
+          <p>Linked <strong>{redirect.linked}</strong> to your account.</p>
         </section>
       )}
 
@@ -83,31 +78,24 @@ export default function OAuthPage() {
           All providers are Voult-hosted: playground → Voult → provider → Voult → playground.
         </p>
 
+        <p className="endpoint-hint">GET /api/auth/oauth/:provider/start (from @voult/express)</p>
+
+        {providersLoading && <p className="hint">Loading providers…</p>}
+        {providersError && <p className="field-error">Couldn't load providers: {providersError.message}</p>}
+        {!providersLoading && !providersError && readyButtons.length === 0 && (
+          <p className="hint">No providers are ready. Turn one on in the Voult dashboard (your app → Sign-in providers).</p>
+        )}
+
         <div className="oauth-buttons">
-          {OAUTH_PROVIDERS.map((item) => (
-            <button
+          {readyButtons.map((item) => (
+            <OAuthButton
               key={item.id}
-              type="button"
+              provider={item.id}
+              returnTo="/account"
               className={`btn btn-oauth ${item.className}`}
-              onClick={() => startOAuth(item.id)}
             >
               {item.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="oauth-config-list">
-          {OAUTH_PROVIDERS.map((item) => (
-            <div key={item.id} className="oauth-config-item">
-              <strong>{item.id}</strong>
-              <span className="badge badge-muted">Voult hosted</span>
-              {config[item.id]?.enabledInVoult ? (
-                <span className="badge badge-ok">Enabled in Voult</span>
-              ) : (
-                <span className="badge badge-muted">Check Voult dashboard</span>
-              )}
-              <code className="callback-url">{config[item.id]?.callbackUrl}</code>
-            </div>
+            </OAuthButton>
           ))}
         </div>
       </section>
@@ -174,10 +162,15 @@ export default function OAuthPage() {
 
       <section className="form-card">
         <h2>Account linking (authenticated)</h2>
+        <p className="endpoint-hint">GET /api/auth/oauth/{provider}/start?intent=link</p>
         <div className="inline-actions">
-          <button type="button" className="btn btn-secondary" onClick={linkProvider} disabled={loading}>
-            Link {provider}
-          </button>
+          {authenticated ? (
+            <OAuthButton provider={provider} intent="link" returnTo="/oauth" className="btn btn-secondary">
+              Link {provider}
+            </OAuthButton>
+          ) : (
+            <span className="hint">Sign in first to link a provider.</span>
+          )}
           <button type="button" className="btn btn-secondary" onClick={loadLinked} disabled={loading}>
             List linked accounts
           </button>

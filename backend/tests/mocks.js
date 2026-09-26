@@ -123,6 +123,8 @@ vi.mock('@voult/sdk', () => ({
   authenticateWithApple: vi.fn(),
   getOAuthAuthorizationUrl: vi.fn(),
   exchangeOAuthCode: vi.fn(),
+  getAppInfo: vi.fn(),
+  getApiMeta: vi.fn(),
   linkOAuthProvider: vi.fn(),
   getLinkedOAuthProviders: vi.fn(),
   unlinkOAuthProvider: vi.fn(),

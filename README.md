@@ -2,15 +2,15 @@
 
 Interactive playground for testing every authentication endpoint documented in `[docs/integration/VOULT_AUTH.md](docs/integration/VOULT_AUTH.md)`.
 
-Password auth, session cookies, and error handling come from [`@voult/express`](../voult-sdk/packages/express) (`createVoultRouter()`, mounted at `/api/auth` in `backend/src/routes/api.js`) — this repo is a **reference consumer** of that package, not the place to copy BFF code from. MFA, WebAuthn, OAuth, and social login stay local here until they graduate into the package (Phase 2+). Integrators should start at [`voult`'s quick-start doc](../voult/docs/integration/QUICK_START.md) or the standalone [`voult-demo`](../voult-demo) app instead.
+Password auth, sessions, MFA verification and **hosted OAuth** come from [`@voult/express`](../voult-sdk/packages/express) (`createVoultRouter()`, mounted at `/api/auth` in `backend/src/routes/api.js`); the frontend's session state and OAuth buttons come from [`@voult/react`](../voult-sdk/packages/react). This repo is a **reference consumer** of those packages, not the place to copy BFF code from. MFA setup, WebAuthn and the manual token-exchange tool stay local here. Integrators should start at [`voult`'s quick-start doc](../voult/docs/integration/QUICK_START.md) or the standalone [`voult-demo`](../voult-demo) app instead.
 
 ## Architecture
 
 ```
-Browser (React)  →  Playground BFF (Express, using @voult/express)  →  Voult API
-                         ↑
-                   holds CLIENT_SECRET
-                   stores tokens in session cookie
+Browser (React + @voult/react)  →  Playground BFF (Express + @voult/express)  →  Voult API
+                                        ↑
+                                  holds CLIENT_SECRET
+                                  stores tokens in httpOnly cookies
 ```
 
 The browser never sees your Voult client secret. The BFF proxies all auth calls using `voult-sdk`.
@@ -22,7 +22,7 @@ The browser never sees your Voult client secret. The BFF proxies all auth calls 
 ```bash
 PORT=2000
 VOULT_BASE_URL=                        # optional: @voult/sdk ≥0.1.2 defaults to https://staging.voult.dev; set for a local Voult instance
-APP_BASE_URL=http://localhost:5173
+VOULT_APP_URL=http://localhost:5173    # OAuth sends users back to the frontend
 VOULT_CLIENT_ID=app_...
 VOULT_CLIENT_SECRET=...
 VOULT_SESSION_SECRET=change-me
@@ -30,25 +30,11 @@ VOULT_SESSION_SECRET=change-me
 
 1. Add `http://localhost:5173/magic-callback` to your Voult app's allowed callback URLs if testing magic links.
 
-2. One-click OAuth is **Voult-hosted** for every provider (Google, GitHub, Facebook, LinkedIn, Microsoft, Apple). Configure client id/secret on the Voult App, not in the playground `.env`.
-
-Register Voult's hosted callback on each provider console (`<VOULT_BASE_URL>/api/oauth/<provider>/callback`, e.g. `https://staging.voult.dev/api/oauth/github/callback`; local default shown below):
-
-- `http://localhost:3000/api/oauth/google/callback`
-- `http://localhost:3000/api/oauth/github/callback`
-- `http://localhost:3000/api/oauth/facebook/callback`
-- `http://localhost:3000/api/oauth/linkedin/callback`
-- `http://localhost:3000/api/oauth/microsoft/callback`
-- `http://localhost:3000/api/oauth/apple/callback`
-
-Add the playground return URLs to the Voult app's allowed callback URLs:
-
-- `http://localhost:2000/oauth/callback/google`
-- `http://localhost:2000/oauth/callback/github`
-- `http://localhost:2000/oauth/callback/facebook`
-- `http://localhost:2000/oauth/callback/linkedin`
-- `http://localhost:2000/oauth/callback/microsoft`
-- `http://localhost:2000/oauth/callback/apple`
+2. One-click OAuth is **Voult-hosted**: no provider keys in `.env`.
+   - In the Voult dashboard, open your app → **Sign-in providers**, paste each provider's Client ID and Secret, and register the callback URL shown there (e.g. `https://staging.voult.dev/api/oauth/github/callback`) with the provider.
+   - Under **Callback URLs**, add `http://localhost:2000/api/auth/oauth/callback` (while the list is empty, localhost is accepted anyway).
+   - The OAuth page shows a button for every provider that's on **and** configured. Successful sign-ins land on `/account`, MFA users on `/mfa`, and errors back on `/oauth?voult_error=…`.
+   - Run `npx voult doctor` in `backend/` to check all of the above.
 
 3. Install and run:
 

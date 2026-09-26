@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import '../mocks.js';
 import { mockClient } from '../mocks.js';
-import { getOAuthAuthorizationUrl } from '@voult/sdk';
+import { exchangeOAuthCode, getAppInfo, getOAuthAuthorizationUrl } from '@voult/sdk';
 import { createApp } from '../../src/app.js';
 
 describe('BFF HTTP routes', () => {
@@ -27,11 +27,7 @@ describe('BFF HTTP routes', () => {
   it('GET /api/auth/session reports unauthenticated by default', async () => {
     const res = await request(app).get('/api/auth/session');
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      authenticated: false,
-      user: null,
-      mfaPending: false,
-    });
+    expect(res.body).toEqual({ authenticated: false, user: null });
   });
 
   it('GET /api/auth/mfa/status requires authentication', async () => {
@@ -52,57 +48,66 @@ describe('BFF HTTP routes', () => {
     expect(mockClient.get).toHaveBeenCalledWith('/api/provider-visibility/app_test123');
   });
 
-  it('GET /api/oauth/config returns all providers hosted and enabled in playground', async () => {
-    mockClient.get.mockResolvedValueOnce({
-      providers: { google: true, github: false },
+  it('GET /api/auth/oauth/providers lists providers that are on and configured (@voult/express)', async () => {
+    getAppInfo.mockResolvedValueOnce({
+      providers: {
+        google: { enabled: true, configured: true },
+        github: { enabled: true, configured: false },
+      },
     });
 
-    const res = await request(app).get('/api/oauth/config');
+    const res = await request(app).get('/api/auth/oauth/providers');
     expect(res.status).toBe(200);
-
-    for (const provider of ['google', 'github', 'facebook', 'linkedin', 'microsoft', 'apple']) {
-      expect(res.body[provider]).toMatchObject({
-        hosted: true,
-        configured: true,
-        callbackUrl: expect.stringContaining(`/oauth/callback/${provider}`),
-      });
-    }
-
-    expect(res.body.google.enabledInVoult).toBe(true);
-    expect(res.body.github.enabledInVoult).toBe(false);
-    expect(mockClient.get).toHaveBeenCalledWith('/api/provider-visibility/app_test123');
+    expect(res.body).toEqual({ providers: { google: true, github: false } });
   });
 
-  it.each(['google', 'github', 'facebook', 'linkedin', 'microsoft', 'apple'])(
-    'GET /oauth/%s/start asks Voult for the auth URL',
+  it.each(['google', 'github'])(
+    'GET /api/auth/oauth/%s/start redirects to the provider via Voult with a state nonce',
     async (provider) => {
-      getOAuthAuthorizationUrl.mockResolvedValueOnce({
-        authUrl: `https://example.test/oauth/${provider}`,
-      });
+      getOAuthAuthorizationUrl.mockResolvedValueOnce({ authUrl: `https://example.test/oauth/${provider}` });
 
-      const res = await request(app).get(`/oauth/${provider}/start`);
+      const res = await request(app).get(`/api/auth/oauth/${provider}/start`);
 
       expect(res.status).toBe(302);
       expect(res.headers.location).toBe(`https://example.test/oauth/${provider}`);
+      expect(res.headers['set-cookie'].join(';')).toMatch(/voult_oauth=/);
       expect(getOAuthAuthorizationUrl).toHaveBeenCalledWith(
         provider,
         expect.objectContaining({
           intent: 'authenticate',
-          redirectUri: expect.stringContaining(`/oauth/callback/${provider}`),
+          redirectUri: expect.stringMatching(/\/api\/auth\/oauth\/callback$/),
+          state: expect.any(String),
         }),
-        mockClient,
+        expect.anything(),
       );
     },
   );
 
-  it('GET /auth/google/callback redirects to oauth callback route', async () => {
-    const res = await request(app)
-      .get('/auth/google/callback')
-      .query({ code: 'abc', state: 'xyz' });
+  it('OAuth callback lands on the playground pages (/account, /oauth for errors)', async () => {
+    getOAuthAuthorizationUrl.mockImplementationOnce(async (_p, { state }) => ({ authUrl: `https://example.test/?state=${state}` }));
+    exchangeOAuthCode.mockImplementationOnce(async (_code, _opts, client) => {
+      client.setSession({ id: 'u1', email: 'oauth@example.com' }, 'access-1', 'refresh-1');
+      return { accessToken: 'access-1', refreshToken: 'refresh-1', user: { id: 'u1', email: 'oauth@example.com' } };
+    });
 
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe('/oauth/callback/google?code=abc&state=xyz');
+    const agent = request.agent(app);
+    const start = await agent.get('/api/auth/oauth/google/start');
+    const state = new URL(start.headers.location).searchParams.get('state');
+
+    const done = await agent.get('/api/auth/oauth/callback').query({ voult_code: 'otc_1', state });
+    expect(done.headers.location).toBe('http://localhost:5173/account');
+
+    const forged = await request(app).get('/api/auth/oauth/callback').query({ voult_code: 'otc_1', state: 'x' });
+    expect(forged.headers.location).toMatch(/^http:\/\/localhost:5173\/oauth\?voult_error=INVALID_OAUTH_STATE/);
   });
+
+  it.each(['/oauth/google/start', '/api/oauth/config', '/auth/google/callback'])(
+    'the old playground-only OAuth route %s is gone',
+    async (path) => {
+      const res = await request(app).get(path);
+      expect(res.status).toBe(404);
+    },
+  );
 
   it('returns JSON 404 for unknown routes', async () => {
     const res = await request(app).get('/does-not-exist');

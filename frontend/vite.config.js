@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  // One React even when @voult/react is linked locally (npm link / file:) during development.
+  resolve: { dedupe: ['react', 'react-dom'] },
   publicDir: '../public',
   test: {
     environment: 'node',
@@ -16,10 +18,5 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-  },
-  define: {
-    'import.meta.env.VITE_API_ORIGIN': JSON.stringify(
-      process.env.VITE_API_ORIGIN || 'http://localhost:2000',
-    ),
   },
 });

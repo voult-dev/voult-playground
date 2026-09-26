@@ -13,7 +13,6 @@ import {
   refreshSession,
   listSessions,
   revokeSession,
-  verifyMfaLogin,
   getMfaStatus,
   setupMfa,
   enableMfa,
@@ -45,16 +44,15 @@ import {
   signInWithApple,
   signUpWithApple,
   authenticateWithApple,
-  linkOAuthProvider,
   getLinkedOAuthProviders,
   unlinkOAuthProvider,
   setPassword,
 } from '@voult/sdk';
 import catchAsync from '../utils/catchAsync.js';
 import requireAuth from '../middleware/requireAuth.js';
-import { persistMfaPending, readVoultTokens } from '../utils/voultTokens.js';
+import { persistMfaPending } from '../utils/voultTokens.js';
 import { getFrontendUrl } from '../utils/appBaseUrl.js';
-import { sendSanitizedGet, sanitizeUserProfile, sendSanitizedJson } from '../utils/sanitizeResponse.js';
+import { sendSanitizedGet, sendSanitizedJson } from '../utils/sanitizeResponse.js';
 
 const router = Router();
 const voultConfig = loadConfigFromEnv({
@@ -77,47 +75,7 @@ function handleAuthResult(req, res, result) {
   return sendSanitizedJson(res, result);
 }
 
-// Playground session overlay: keep mfaPending for the UI.
-router.get(
-  '/auth/session',
-  catchAsync(async (req, res) => {
-    const client = req.voult;
-    const tokens = readVoultTokens(req);
-
-    if (!client.accessToken && client.refreshToken) {
-      try {
-        await refreshSession(client);
-      } catch {
-        client.clearSession();
-      }
-    }
-
-    const localUser = client.getCurrentUser();
-    if (client.accessToken && !localUser?.email && !localUser?.id) {
-      try {
-        await getCurrentUser(client);
-      } catch {
-        client.clearSession();
-      }
-    }
-
-    sendSanitizedGet(res, 'auth/session', {
-      authenticated: Boolean(client.accessToken),
-      user: sanitizeUserProfile(client.getCurrentUser()) || tokens.user || null,
-      mfaPending: Boolean(tokens.mfaPendingToken),
-    });
-  }),
-);
-
-router.post(
-  '/auth/mfa/verify',
-  catchAsync(async (req, res) => {
-    const { mfaPendingToken, mfaToken } = req.body;
-    const token = mfaPendingToken || readVoultTokens(req).mfaPendingToken;
-    const result = await verifyMfaLogin(token, mfaToken, req.voult);
-    handleAuthResult(req, res, result);
-  }),
-);
+// /auth/session and /auth/mfa/verify come from @voult/express (session renewal, mfaPending).
 
 router.get(
   '/auth/mfa/status',
@@ -396,17 +354,13 @@ for (const provider of Object.keys(OAUTH_HANDLERS)) {
   }
 }
 
-// Password BFF from @voult/express: /register, /email-login, /logout, etc.
-router.use('/auth', createVoultRouter({ config: voultConfig }));
-
-router.post(
-  '/oauth/:provider/link',
-  requireAuth,
-  catchAsync(async (req, res) => {
-    const result = await linkOAuthProvider(req.params.provider, req.voult);
-    res.json(result);
-  }),
-);
+// @voult/express: password auth, session, MFA verify, and hosted OAuth
+// (/auth/oauth/providers, /auth/oauth/:provider/start, /auth/oauth/callback).
+// OAuth lands on the playground's own pages.
+router.use('/auth', createVoultRouter({
+  config: voultConfig,
+  oauth: { successPath: '/account', mfaPath: '/mfa', errorPath: '/oauth' },
+}));
 
 router.get(
   '/me/oauth-accounts',
@@ -450,38 +404,6 @@ router.get(
   catchAsync(async (req, res) => {
     const result = await req.voult.get(`/api/provider-visibility/${req.voult.clientId}`);
     sendSanitizedGet(res, 'provider-visibility', result);
-  }),
-);
-
-router.get(
-  '/oauth/config',
-  catchAsync(async (req, res) => {
-    const backendUrl = process.env.OAUTH_REDIRECT_BASE_URL || `http://localhost:${process.env.PORT || 2000}`;
-    const providers = ['google', 'github', 'facebook', 'linkedin', 'microsoft', 'apple'];
-
-    let visibility = {};
-    try {
-      const result = await req.voult.get(`/api/provider-visibility/${req.voult.clientId}`);
-      visibility = result?.providers || {};
-    } catch {
-      visibility = {};
-    }
-
-    const config = Object.fromEntries(
-      providers.map((provider) => [
-        provider,
-        {
-          hosted: true,
-          configured: true,
-          enabledInVoult: Boolean(visibility[provider]),
-          callbackUrl:
-            process.env[`${provider.toUpperCase()}_REDIRECT_URI`] ||
-            `${backendUrl.replace(/\/$/, '')}/oauth/callback/${provider}`,
-        },
-      ]),
-    );
-
-    res.json(config);
   }),
 );
 
