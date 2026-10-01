@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import ResponsePanel, { useApiAction } from '../components/ResponsePanel';
 import PasswordField from '../components/PasswordField';
 
 export default function MfaPage() {
-  const { refreshSession, authenticated } = useAuth();
+  const { refreshSession, authenticated, mfaPending } = useAuth();
+  const navigate = useNavigate();
   const { data, error, loading, run } = useApiAction();
   const [verifyForm, setVerifyForm] = useState({ mfaPendingToken: '', mfaToken: '' });
   const [enableToken, setEnableToken] = useState('');
@@ -15,11 +17,17 @@ export default function MfaPage() {
 
   const verifyLogin = async (e) => {
     e.preventDefault();
-    const result = await run(() =>
-      api('/auth/mfa/verify', { method: 'POST', body: verifyForm }),
-    );
+    // An empty token would override the pending-MFA cookie @voult/express set (e.g. after Google sign-in).
+    const body = verifyForm.mfaPendingToken
+      ? verifyForm
+      : { mfaToken: verifyForm.mfaToken };
+    try {
+      await run(() => api('/auth/mfa/verify', { method: 'POST', body }));
+    } catch {
+      return; // shown in the response panel
+    }
     await refreshSession();
-    return result;
+    navigate('/account');
   };
 
   const loadStatus = () => run(() => api('/auth/mfa/status'));
@@ -61,11 +69,16 @@ export default function MfaPage() {
       </header>
 
       <section className="form-card">
-        <h2>Login step-up</h2>
+        <h2>{mfaPending ? 'Enter your verification code' : 'Login step-up'}</h2>
+        {mfaPending && (
+          <p className="hint">
+            Your sign-in needs a second step. Enter the code from your authenticator app to finish.
+          </p>
+        )}
         <p className="endpoint-hint">POST /api/auth/mfa/verify</p>
         <form onSubmit={verifyLogin}>
           <label>
-            MFA pending token
+            MFA pending token{mfaPending && ' (optional, already saved from your sign-in)'}
             <input
               value={verifyForm.mfaPendingToken}
               onChange={(e) =>
@@ -80,6 +93,8 @@ export default function MfaPage() {
               value={verifyForm.mfaToken}
               onChange={(e) => setVerifyForm((f) => ({ ...f, mfaToken: e.target.value }))}
               placeholder="123456 or A1B2C3D4"
+              autoComplete="one-time-code"
+              autoFocus={mfaPending}
               required
             />
           </label>

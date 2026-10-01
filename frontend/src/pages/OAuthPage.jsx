@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { OAuthButton, getOAuthRedirectResult, useOAuthProviders } from '@voult/react';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import ResponsePanel, { useApiAction } from '../components/ResponsePanel';
+import { describeOAuthError } from '../lib/oauthErrors';
 
 const OAUTH_PROVIDERS = [
   { id: 'google', label: 'Continue with Google', className: 'btn-google' },
@@ -35,6 +36,7 @@ export default function OAuthPage() {
   // @voult/express redirects failures here as ?voult_error=…, and linking as ?voult_linked=…
   const redirect = getOAuthRedirectResult(`?${searchParams.toString()}`);
   const readyButtons = OAUTH_PROVIDERS.filter((item) => readyProviders.includes(item.id));
+  const redirectError = redirect.error && describeOAuthError(redirect.error);
 
   const submitManual = async (e) => {
     e.preventDefault();
@@ -46,9 +48,16 @@ export default function OAuthPage() {
     return result;
   };
 
-  const loadLinked = () => run(() => api('/me/oauth-accounts'));
+  const loadLinked = () => run(() => api('/me/oauth-accounts')).catch(() => {});
+
+  // After a successful link, show the updated list straight away.
+  useEffect(() => {
+    if (redirect.linked && authenticated) loadLinked();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [redirect.linked, authenticated]);
+
   const unlinkProvider = () =>
-    run(() => api(`/me/oauth-accounts/${provider}`, { method: 'DELETE' }));
+    run(() => api(`/me/oauth-accounts/${provider}`, { method: 'DELETE' })).catch(() => {});
 
   return (
     <div className="page">
@@ -57,18 +66,24 @@ export default function OAuthPage() {
         <p>One-click sign-in for every Voult OAuth provider.</p>
       </header>
 
-      {redirect.error && (
-        <section className="form-card danger-zone">
-          <p className="field-error">
-            OAuth error <code>{redirect.error.code}</code>
-            {redirect.error.description ? `: ${redirect.error.description}` : ''}
+      {redirectError && (
+        <section className={redirectError.cancelled ? 'form-card' : 'form-card danger-zone'}>
+          <p className={redirectError.cancelled ? undefined : 'field-error'}>
+            {redirectError.message}{' '}
+            {authenticated ? 'Your account was not changed.' : "You're not signed in."}
+          </p>
+          <p className="hint">
+            Code: <code>{redirect.error.code}</code>
           </p>
         </section>
       )}
 
       {redirect.linked && (
         <section className="form-card">
-          <p>Linked <strong>{redirect.linked}</strong> to your account.</p>
+          <p>
+            Linked <strong>{OAUTH_PROVIDERS.find((p) => p.id === redirect.linked)?.label.replace('Continue with ', '') ?? redirect.linked}</strong>{' '}
+            to your account. You can now sign in with it as well as your password.
+          </p>
         </section>
       )}
 
@@ -162,19 +177,29 @@ export default function OAuthPage() {
 
       <section className="form-card">
         <h2>Account linking (authenticated)</h2>
-        <p className="endpoint-hint">GET /api/auth/oauth/{provider}/start?intent=link</p>
+        <p className="endpoint-hint">GET /api/auth/oauth/:provider/start?intent=link</p>
+        {authenticated ? (
+          <div className="oauth-buttons">
+            {readyButtons.map((item) => (
+              <OAuthButton
+                key={item.id}
+                provider={item.id}
+                intent="link"
+                returnTo="/oauth"
+                className={`btn btn-oauth ${item.className}`}
+              >
+                {item.label.replace('Continue with', 'Link')}
+              </OAuthButton>
+            ))}
+          </div>
+        ) : (
+          <p className="hint">Sign in (e.g. with your password) first to link a provider.</p>
+        )}
         <div className="inline-actions">
-          {authenticated ? (
-            <OAuthButton provider={provider} intent="link" returnTo="/oauth" className="btn btn-secondary">
-              Link {provider}
-            </OAuthButton>
-          ) : (
-            <span className="hint">Sign in first to link a provider.</span>
-          )}
-          <button type="button" className="btn btn-secondary" onClick={loadLinked} disabled={loading}>
+          <button type="button" className="btn btn-secondary" onClick={loadLinked} disabled={!authenticated || loading}>
             List linked accounts
           </button>
-          <button type="button" className="btn btn-ghost" onClick={unlinkProvider} disabled={loading}>
+          <button type="button" className="btn btn-ghost" onClick={unlinkProvider} disabled={!authenticated || loading}>
             Unlink {provider}
           </button>
         </div>

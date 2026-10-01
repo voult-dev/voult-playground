@@ -5,7 +5,7 @@ export const navItems = [
   { to: '/mfa', label: 'MFA', access: 'authenticated-or-mfa' },
   { to: '/passkeys', label: 'Passkeys', access: 'always' },
   { to: '/magic-link', label: 'Magic link', access: 'guest' },
-  { to: '/oauth', label: 'OAuth', access: 'guest' },
+  { to: '/oauth', label: 'OAuth', access: 'always' }, // signed-in users link providers here
   { to: '/account', label: 'Account', access: 'authenticated' },
   { to: '/sessions', label: 'Sessions', access: 'authenticated' },
   { to: '/utilities', label: 'Utilities', access: 'always' },
