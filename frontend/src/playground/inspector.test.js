@@ -5,8 +5,10 @@ import { clearEntries, getEntries, installInspector, redact } from './inspector.
 /** A window-like object whose fetch answers JSON. */
 function fakeWindow(answer = { status: 200, body: { ok: true } }) {
   const calls = [];
+  const handlers = {};
   const win = {
     location: { href: 'http://localhost:5173/account' },
+    addEventListener: (type, fn) => { handlers[type] = fn; },
     fetch: async (input, init) => {
       calls.push([input, init]);
       if (answer instanceof Error) throw answer;
@@ -14,7 +16,7 @@ function fakeWindow(answer = { status: 200, body: { ok: true } }) {
     },
   };
   installInspector(win);
-  return { win, calls };
+  return { win, calls, handlers };
 }
 
 beforeEach(() => clearEntries());
@@ -47,6 +49,13 @@ test('errors are recorded too: HTTP errors and network failures', async () => {
   await assert.rejects(() => offline.win.fetch('/api/auth/session'), /Failed to fetch/);
   assert.equal(getEntries()[0].status, 0);
   assert.match(getEntries()[0].response.networkError, /Failed to fetch/);
+});
+
+test('calls cancelled by leaving the page are not logged as failures', async () => {
+  const { win, handlers } = fakeWindow(new TypeError('Failed to fetch'));
+  handlers.pagehide();
+  await assert.rejects(() => win.fetch('/api/auth/session'));
+  assert.deepEqual(getEntries(), []);
 });
 
 test('keeps the newest 25, newest first', async () => {

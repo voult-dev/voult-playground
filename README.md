@@ -1,12 +1,12 @@
 # Voult playground
 
-The [`express-react` template](https://github.com/voult-dev/voult-sdk/tree/main/templates/express-react) (what `npx create-voult-app` gives you) plus a few showcase extras, so you can try every Voult feature and see the API calls behind it.
+A feature explorer for Voult: try every sign-in method and account feature against a real app, and watch the API call behind each click. It is built on the [`express-react` template](https://github.com/voult-dev/voult-sdk/tree/main/templates/express-react) (what `npx create-voult-app` gives you): the template's server and components, unchanged, inside a playground shell.
 
-- **Every page of the template:** sign-up/in (password, Google/GitHub/LinkedIn, magic link, passkey), MFA, sessions, linked accounts, password reset, email verification, account deletion.
-- **API calls panel** (bottom of every page): each `/api/*` call the page makes, with its request (passwords masked) and the JSON that came back. It survives the full page load after sign-in.
-- **Utilities page** (`/utilities`): router routes the template's pages don't use: the raw session, which providers are on, your activity log, and setting a password on a Google/GitHub-only account.
+- **Sidebar of features**, grouped (Sign in · Your account · Explore). Items that need you signed in, or signed out, are dimmed with the reason; the session card shows who's signed in.
+- **Every page lists the router routes it calls**, and the **API calls panel** shows each `/api/*` request and response (passwords and tokens masked, kept across the full page load after sign-in, session checks hideable).
+- **Pages:** sign in and sign up (email or username), Google/GitHub & co. (sign-in intents, linking), magic link (send, or paste a token), passkeys (browser support check, sign in, add/rename/remove), two-factor (set up, backup codes, turn off, the sign-in code step), sessions (sign out any device, refresh tokens now), account (profile, edit name, set a password, sign out, delete), email & reset (forgot password, open a verify/reset link from its token), utilities (raw session, enabled providers, your activity log).
 
-The server has **no auth code of its own**: `backend/auth.js` mounts `@voult/express`, which serves every auth route. CI fails if that changes (`npm run check:backend`).
+The server has **no auth code of its own**: `backend/auth.js` mounts `@voult/express`, which serves every auth route. CI fails if that changes (`npm run check:backend`). Retired from the old playground: the manual OAuth token exchange (hosted OAuth replaced it) and account re-enable (deletion signs you out first).
 
 ## Run it
 
@@ -21,17 +21,24 @@ In the Voult dashboard, add `http://localhost:5173/api/auth/oauth/callback` unde
 ## Where things are
 
 ```
-backend/                  the template's server, unchanged
-frontend/src/             the template's frontend, unchanged except:
-  App.jsx, main.jsx       + the Utilities page, the API calls panel and the fetch recorder
-  playground/             everything playground-only
-    inspector.js          records /api/* calls (wraps fetch; masks passwords and tokens)
-    Inspector.jsx         the API calls panel
-    Utilities.jsx         the /utilities page
-scripts/check-backend.mjs CI guard: no auth routes in backend/ besides the router mount
+backend/                   the template's server, unchanged
+frontend/src/              the template's frontend, unchanged (App.jsx, pages/ are the template's, unused here)
+  main.jsx                 renders the playground instead of App, and starts the API call recorder
+  playground/
+    Playground.jsx         the shell: sidebar, session card, page, API calls panel
+    pages.js               the sidebar/route table (label, group, who can use it)
+    access.js              signed in / signed out / mid-MFA rules for each page (tested)
+    SignInPages.jsx        sign in, sign up, OAuth, magic link, passkeys
+    AccountPages.jsx       MFA, sessions, account, email & reset
+    Home.jsx, Utilities.jsx
+    ui.jsx                 page header with routes, gate, tabs
+    inspector.js           records /api/* calls (wraps fetch; masks secrets; tested)
+    Inspector.jsx          the API calls panel
+    playground.css         the playground's look (light and dark)
+scripts/check-backend.mjs  CI guard: no auth routes in backend/ besides the router mount
 ```
 
-To pick up template changes, copy `backend/` and `frontend/` from the template again and re-apply the two small edits in `App.jsx` and `main.jsx` (and the `<title>` in `index.html`).
+To pick up template changes, copy `backend/` and `frontend/` (except `main.jsx` and `index.html`) from the template again; the playground only adds files under `frontend/src/playground/`.
 
 ## Production
 
@@ -44,6 +51,6 @@ Set `VOULT_CLIENT_ID`, `VOULT_CLIENT_SECRET`, `VOULT_SESSION_SECRET` and `NODE_E
 ## Tests
 
 ```bash
-npm test               # the backend guard and the API calls recorder
+npm test               # the backend guard, the access rules and the API calls recorder
 npm run check:backend  # the guard alone
 ```

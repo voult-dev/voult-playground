@@ -60,6 +60,9 @@ export function subscribe(listener) {
 /** Wraps `target.fetch` (window in the browser) so calls to /api/* are recorded. */
 export function installInspector(target = globalThis) {
   const realFetch = target.fetch.bind(target);
+  // A full page load (after sign-in, say) cancels calls in flight: not failures, so not logged.
+  let leaving = false;
+  target.addEventListener?.('pagehide', () => { leaving = true; });
   target.fetch = async (input, init = {}) => {
     const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url, target.location?.href ?? 'http://localhost/');
     if (!url.pathname.startsWith('/api/')) return realFetch(input, init);
@@ -75,7 +78,7 @@ export function installInspector(target = globalThis) {
       record({ ...base, status: res.status, ms: Date.now() - started, response });
       return res;
     } catch (err) {
-      record({ ...base, status: 0, ms: Date.now() - started, response: { networkError: String(err.message ?? err) } });
+      if (!leaving) record({ ...base, status: 0, ms: Date.now() - started, response: { networkError: String(err.message ?? err) } });
       throw err;
     }
   };
