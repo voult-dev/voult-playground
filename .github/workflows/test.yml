@@ -6,8 +6,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - run: npm ci --prefix backend
-      - run: npm ci --prefix frontend
-      - run: npm run test:backend
-      - run: npm run test:frontend
+        with: { node-version: 24 }
+      - run: npm ci
+      # D6: the server stays the template's: every auth route comes from @voult/express.
+      - run: npm run check:backend
+      - run: npm test
+      - run: npm run build

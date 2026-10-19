@@ -1,20 +1,33 @@
 {
   "name": "voult-playground",
   "private": true,
-  "version": "1.0.0",
-  "description": "Interactive playground for the Voult authentication API",
+  "version": "0.1.0",
+  "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
-    "dev:backend": "npm run dev --prefix backend",
-    "dev:frontend": "npm run dev --prefix frontend",
-    "start": "npm run start --prefix backend",
-    "build": "npm run build --prefix frontend",
-    "test": "npm run test --prefix backend && npm run test --prefix frontend",
-    "test:backend": "npm run test --prefix backend",
-    "test:frontend": "npm run test --prefix frontend"
+    "dev": "concurrently -k -n api,web -c blue,magenta \"node --env-file=.env --watch backend/server.js\" \"vite\"",
+    "build": "vite build",
+    "start": "node --env-file=.env backend/server.js",
+    "doctor": "voult doctor --callback-url http://localhost:5173/api/auth/oauth/callback",
+    "test": "node --test scripts/*.test.mjs frontend/src/playground/*.test.js",
+    "check:backend": "node scripts/check-backend.mjs"
+  },
+  "dependencies": {
+    "@simplewebauthn/browser": "^14.0.0",
+    "@voult/express": "^0.4.0",
+    "@voult/react": "^0.2.0",
+    "@voult/sdk": "^0.2.2",
+    "express": "^5.2.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "gitnexus": "^1.6.11"
-  }
+    "@vitejs/plugin-react": "^5.0.0",
+    "@voult/cli": "^0.3.0",
+    "concurrently": "^9.2.0",
+    "vite": "^7.1.0"
+  },
+  "engines": {
+    "node": ">=20.12"
+  },
+  "description": "The Voult playground: the express-react template plus showcase pages"
 }

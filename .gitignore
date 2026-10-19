@@ -1,9 +1,5 @@
-# Dependency directories
-/node_modules/
-node_modules/
-jspm_packages/
-
-# Environment variables and secrets
+node_modules
+dist
 .env
-.env.*.local
-.env.local
+.DS_Store
+.gitnexus

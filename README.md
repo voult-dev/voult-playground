@@ -1,84 +1,56 @@
-# Voult Auth Playground
+# Voult playground
 
-Interactive playground for testing every authentication endpoint documented in `[docs/integration/VOULT_AUTH.md](docs/integration/VOULT_AUTH.md)`.
+A feature explorer for Voult: try every sign-in method and account feature against a real app, and watch the API call behind each click. It is built on the [`express-react` template](https://github.com/voult-dev/voult-sdk/tree/main/templates/express-react) (what `npx create-voult-app` gives you): the template's server and components, unchanged, inside a playground shell.
 
-Password auth, sessions, MFA verification and **hosted OAuth** come from [`@voult/express`](../voult-sdk/packages/express) (`createVoultRouter()`, mounted at `/api/auth` in `backend/src/routes/api.js`); the frontend's session state and OAuth buttons come from [`@voult/react`](../voult-sdk/packages/react). This repo is a **reference consumer** of those packages, not the place to copy BFF code from. MFA setup, WebAuthn and the manual token-exchange tool stay local here. Integrators should start at [`voult`'s quick-start doc](../voult/docs/integration/QUICK_START.md) or the standalone [`voult-demo`](../voult-demo) app instead.
+- **Sidebar of features**, grouped (Sign in · Your account · Explore). Items that need you signed in, or signed out, are dimmed with the reason; the session card shows who's signed in.
+- **Every page lists the router routes it calls**, and the **API calls panel** shows each `/api/*` request and response (passwords and tokens masked, kept across the full page load after sign-in, session checks hideable).
+- **Pages:** sign in and sign up (email or username), Google/GitHub & co. (sign-in intents, linking), magic link (send, or paste a token), passkeys (browser support check, sign in, add/rename/remove), two-factor (set up, backup codes, turn off, the sign-in code step), sessions (sign out any device, refresh tokens now), account (profile, edit name, set a password, sign out, delete), email & reset (forgot password, open a verify/reset link from its token), utilities (raw session, enabled providers, your activity log).
 
-## Architecture
+The server has **no auth code of its own**: `backend/auth.js` mounts `@voult/express`, which serves every auth route. CI fails if that changes (`npm run check:backend`). Retired from the old playground: the manual OAuth token exchange (hosted OAuth replaced it) and account re-enable (deletion signs you out first).
 
-```
-Browser (React + @voult/react)  →  Playground BFF (Express + @voult/express)  →  Voult API
-                                        ↑
-                                  holds CLIENT_SECRET
-                                  stores tokens in httpOnly cookies
-```
-
-The browser never sees your Voult client secret. The BFF proxies all auth calls using `voult-sdk`.
-
-## Setup
-
-1. Copy `backend/.env.example` to `backend/.env` and fill in your Voult app credentials (canonical `VOULT_*` names — legacy `CLIENT_ID`/`CLIENT_SECRET`/`SESSION_SECRET` still work with a deprecation warning):
-
-```bash
-PORT=2000
-VOULT_BASE_URL=                        # optional: @voult/sdk ≥0.1.2 defaults to https://staging.voult.dev; set for a local Voult instance
-VOULT_APP_URL=http://localhost:5173    # OAuth sends users back to the frontend
-VOULT_CLIENT_ID=app_...
-VOULT_CLIENT_SECRET=...
-VOULT_SESSION_SECRET=change-me
-```
-
-1. Add `http://localhost:5173/magic-callback` to your Voult app's allowed callback URLs if testing magic links.
-
-2. One-click OAuth is **Voult-hosted**: no provider keys in `.env`.
-   - In the Voult dashboard, open your app → **Sign-in providers**, paste each provider's Client ID and Secret, and register the callback URL shown there (e.g. `https://staging.voult.dev/api/oauth/github/callback`) with the provider.
-   - Under **Callback URLs**, add `http://localhost:2000/api/auth/oauth/callback` (while the list is empty, localhost is accepted anyway).
-   - The OAuth page shows a button for every provider that's on **and** configured. Successful sign-ins land on `/account`, MFA users on `/mfa`, and errors back on `/oauth?voult_error=…`.
-   - Run `npx voult doctor` in `backend/` to check all of the above.
-
-3. Install and run:
+## Run it
 
 ```bash
 npm install
-npm install --prefix backend
-npm install --prefix frontend
-npm run dev
+npx voult init     # writes .env with your app's Client ID and Secret (once)
+npm run dev        # API on :3000, app on http://localhost:5173
 ```
 
-- Frontend: [http://localhost:5173](http://localhost:5173)
-- BFF API: [http://localhost:2000/api](http://localhost:2000/api)
+In the Voult dashboard, add `http://localhost:5173/api/auth/oauth/callback` under **Callback URLs** (it also covers magic links), turn on providers under **Sign-in providers**, then `npm run doctor`.
 
+## Where things are
 
+```
+backend/                   the template's server, unchanged
+frontend/src/              the template's frontend, unchanged (App.jsx, pages/ are the template's, unused here)
+  main.jsx                 renders the playground instead of App, and starts the API call recorder
+  playground/
+    Playground.jsx         the shell: sidebar, session card, page, API calls panel
+    pages.js               the sidebar/route table (label, group, who can use it)
+    access.js              signed in / signed out / mid-MFA rules for each page (tested)
+    SignInPages.jsx        sign in, sign up, OAuth, magic link, passkeys
+    AccountPages.jsx       MFA, sessions, account, email & reset
+    Home.jsx, Utilities.jsx
+    ui.jsx                 page header with routes, gate, tabs
+    inspector.js           records /api/* calls (wraps fetch; masks secrets; tested)
+    Inspector.jsx          the API calls panel
+    playground.css         the playground's look (light and dark)
+scripts/check-backend.mjs  CI guard: no auth routes in backend/ besides the router mount
+```
 
-## Covered endpoints
+To pick up template changes, copy `backend/` and `frontend/` (except `main.jsx` and `index.html`) from the template again; the playground only adds files under `frontend/src/playground/`.
 
-All endpoints from VOULT_AUTH.md §11:
+## Production
 
+```bash
+npm run build && npm start   # one server on $PORT serves the API and the app
+```
 
-| Feature       | Endpoints                                                              |
-| ------------- | ---------------------------------------------------------------------- |
-| Password auth | register, username-register, email-login, username-login, logout       |
-| MFA           | setup, enable, verify, status, disable, backup-codes/regenerate        |
-| WebAuthn      | compatibility, register/login options & verify, credentials CRUD       |
-| Sessions      | list, revoke, refresh                                                  |
-| User          | me (GET/PATCH), verify-email, forgot/reset password, disable, reenable |
-| Magic link    | send-magic-link, validate-magic-link                                   |
-| OAuth         | google/github/facebook/linkedin/microsoft/apple login & register       |
-| OAuth linking | link, oauth-accounts, unlink, set-password                             |
-| Audit         | audit-logs/me                                                          |
+Set `VOULT_CLIENT_ID`, `VOULT_CLIENT_SECRET`, `VOULT_SESSION_SECRET` and `NODE_ENV=production` on the host, add `https://<host>/api/auth/oauth/callback` under Callback URLs, and check with `npx voult doctor --production`.
 
+## Tests
 
-
-
-## Password rules
-
-Voult only accepts these special characters: `@$!%*?&`
-
-Passwords like `V:ajRyizU7jt:_T` fail because `:` and `_` are not allowed, even though they look strong. Use something like `Str0ng!Pass` instead.
-
-## Scripts
-
-- `npm run dev` — start backend + frontend together
-- `npm run dev:backend` — BFF only
-- `npm run dev:frontend` — React UI only
-
+```bash
+npm test               # the backend guard, the access rules and the API calls recorder
+npm run check:backend  # the guard alone
+```
