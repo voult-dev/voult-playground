@@ -1,40 +1,42 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
-import Layout from './components/Layout';
-import HomePage from './pages/HomePage';
-import SignupPage from './pages/SignupPage';
-import SigninPage from './pages/SigninPage';
-import MfaPage from './pages/MfaPage';
-import PasskeysPage from './pages/PasskeysPage';
-import MagicLinkPage from './pages/MagicLinkPage';
-import MagicCallbackPage from './pages/MagicCallbackPage';
-import OAuthPage from './pages/OAuthPage';
-import AccountPage from './pages/AccountPage';
-import SessionsPage from './pages/SessionsPage';
-import UtilitiesPage from './pages/UtilitiesPage';
-import './App.css';
+import { useSession } from '@voult/react';
+import Account from './pages/Account.jsx';
+import ForgotPassword from './auth/ForgotPassword.jsx';
+import Home from './pages/Home.jsx';
+import Mfa from './auth/Mfa.jsx';
+import ResetPassword from './auth/ResetPassword.jsx';
+import SignIn from './auth/SignIn.jsx';
+import SignUp from './auth/SignUp.jsx';
+import VerifyEmail from './auth/VerifyEmail.jsx';
+import Inspector from './playground/Inspector.jsx';
+import Utilities from './playground/Utilities.jsx';
+
+// One page per path. Plain links and full page loads keep it simple, and a full load is the
+// right move after signing in or out anyway. Swap in a router library whenever you like.
+const PAGES = {
+  '/': Home,
+  '/login': SignIn,
+  '/signup': SignUp,
+  '/mfa': Mfa,
+  '/account': Account,
+  '/forgot-password': ForgotPassword,
+  '/reset-password': ResetPassword,
+  '/verify-email': VerifyEmail,
+  '/utilities': Utilities,     // playground
+};
 
 export default function App() {
+  const { status, user } = useSession();
+  const Page = PAGES[location.pathname] ?? Home;
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<HomePage />} />
-            <Route path="signup" element={<SignupPage />} />
-            <Route path="signin" element={<SigninPage />} />
-            <Route path="mfa" element={<MfaPage />} />
-            <Route path="passkeys" element={<PasskeysPage />} />
-            <Route path="magic-link" element={<MagicLinkPage />} />
-            <Route path="magic-callback" element={<MagicCallbackPage />} />
-            <Route path="oauth" element={<OAuthPage />} />
-            <Route path="account" element={<AccountPage />} />
-            <Route path="sessions" element={<SessionsPage />} />
-            <Route path="utilities" element={<UtilitiesPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+    <>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/account">Account</a>
+        <a href="/utilities">Utilities</a>
+        <span className="who">{status === 'authenticated' ? user.email : status === 'loading' ? '' : <a href="/login">Sign in</a>}</span>
+      </nav>
+      <main><Page /></main>
+      <Inspector />
+    </>
   );
 }

@@ -1,0 +1,16 @@
+/* Playground-only styles, on top of the template's styles.css. */
+body { padding-bottom: 45vh; }
+.inspector { position: fixed; left: 0; right: 0; bottom: 0; max-height: 42vh; display: flex; flex-direction: column; background: var(--bg); border-top: 1px solid var(--line); font-size: 13px; }
+.inspector-toggle { border: 0; border-radius: 0; text-align: left; padding: 8px 16px; font-weight: 600; }
+.inspector-body { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 12px; padding: 0 16px 12px; overflow: auto; }
+.inspector-body > p, .inspector-body > button { grid-column: 1 / -1; justify-self: start; }
+.inspector-list { list-style: none; margin: 0; padding: 0; overflow: auto; }
+.inspector-list button { width: 100%; text-align: left; border: 0; padding: 4px 6px; overflow-wrap: anywhere; }
+.inspector-list button.active { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.inspector-detail { overflow: auto; }
+.inspector-detail h3 { font-size: 12px; margin: 4px 0; color: var(--muted); text-transform: uppercase; }
+.inspector pre { margin: 0 0 8px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.endpoint { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); }
+.activity { width: 100%; border-collapse: collapse; font-size: 14px; }
+.activity td, .activity th { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); }
+@media (max-width: 640px) { .inspector-body { grid-template-columns: 1fr; } }
