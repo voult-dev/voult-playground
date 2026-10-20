@@ -137,7 +137,7 @@ export function OAuthPage() {
             </div>
             {loading ? <p className="muted">Loading providers…</p> : providers.length === 0
               ? <p className="muted">No providers are on yet. Turn them on in the Voult dashboard → your app → Sign-in providers.</p>
-              : <div className="pg-row">{providers.map((p) => <OAuthButton key={p} provider={p} intent={intent} returnTo="/account" className="button">Continue with {p}</OAuthButton>)}</div>}
+              : <div className="pg-row">{providers.map((p) => <OAuthButton key={p} provider={p} intent={intent} returnTo="/account" className="button" />)}</div>}
           </section>
         </Gate>
       )}

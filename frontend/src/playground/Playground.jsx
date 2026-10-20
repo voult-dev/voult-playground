@@ -8,6 +8,7 @@ import { AccountPage, EmailPage, MfaPage, SessionsPage } from './AccountPages.js
 import Home from './Home.jsx';
 import Inspector from './Inspector.jsx';
 import { PAGES } from './pages.js';
+import { LockIcon, ThemeToggle, Wordmark } from './ui.jsx';
 import { MagicLinkPage, OAuthPage, PasskeysPage, SignInPage, SignUpPage } from './SignInPages.jsx';
 import Utilities from './Utilities.jsx';
 import './playground.css';
@@ -52,10 +53,12 @@ function Sidebar() {
   for (const p of PAGES) if (p.group) (groups[p.group] ??= []).push(p);
   return (
     <aside className="pg-sidebar">
-      <a className="pg-brand" href="/">
-        <img src="/images/favicon.svg" alt="" width="28" height="28" />
-        <span><b>voult.dev</b><small>playground</small></span>
-      </a>
+      <div className="pg-sidebar-top">
+        <a className="pg-brand" href="/" aria-label="Voult playground home">
+          <Wordmark /><span>voult</span><span className="badge-preview">playground</span>
+        </a>
+        <ThemeToggle />
+      </div>
       <nav aria-label="Features">
         {Object.entries(groups).map(([group, pages]) => (
           <div key={group} className="pg-nav-group">
@@ -65,7 +68,7 @@ function Sidebar() {
               const current = location.pathname === p.path;
               return (
                 <a key={p.path} href={p.path} aria-current={current ? 'page' : undefined} className={`pg-nav-link${locked ? ' locked' : ''}`} title={locked ?? undefined}>
-                  {p.label}{locked && <span className="pg-lock" aria-label={locked}>🔒</span>}
+                  {p.label}{locked && <span className="pg-lock" role="img" aria-label={locked}><LockIcon /></span>}
                 </a>
               );
             })}

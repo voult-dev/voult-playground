@@ -7,13 +7,13 @@ export default function Home() {
   return (
     <>
       <header className="pg-hero">
-        <p className="pg-eyebrow">voult.dev</p>
-        <h1>Auth playground</h1>
+        <p className="pg-eyebrow"><span>00</span>Playground</p>
+        <h1>Every Voult auth flow, <span className="h1-quiet">running against a real app.</span></h1>
         <p className="pg-intro">
           Try every Voult feature against a real app, and watch each request in the <b>API calls</b> panel.
           It is the <code>express-react</code> template from <code>npx create-voult-app</code>, plus these extra pages.
         </p>
-        <p>
+        <p className="pg-row">
           {status === 'authenticated'
             ? <>Signed in as <b>{user.email ?? user.username}</b>. <a href="/account">Your account</a></>
             : <><a className="button primary" href="/signup">Create a test account</a> <a className="button" href="/login">Sign in</a></>}

@@ -30,7 +30,7 @@ export default function SignIn() {
       </section>
       {providers.length > 0 && (
         <section>
-          {providers.map((p) => <OAuthButton key={p} provider={p} returnTo={returnTo} className="button">Continue with {p}</OAuthButton>)}
+          {providers.map((p) => <OAuthButton key={p} provider={p} returnTo={returnTo} className="button" />)}
         </section>
       )}
       <section>
