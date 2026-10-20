@@ -2,12 +2,23 @@ import { useState, useSyncExternalStore } from 'react';
 import { clearEntries, getEntries, subscribe } from './inspector.js';
 
 const narrow = () => typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
+const OPEN_KEY = 'pg-api-calls-open';
+
+// Remember whether the panel is open across reloads; first visit: open, except on phones.
+function savedOpen() {
+  try {
+    const v = localStorage.getItem(OPEN_KEY);
+    if (v === 'true' || v === 'false') return v === 'true';
+  } catch {}
+  return !narrow();
+}
+
 const isSessionCheck = (e) => e.method === 'GET' && e.path === '/api/auth/session';
 
 /** Docked panel: the latest /api/* calls, newest first; click one for its request and response. */
 export default function Inspector() {
   const all = useSyncExternalStore(subscribe, getEntries);
-  const [open, setOpen] = useState(() => !narrow());
+  const [open, setOpen] = useState(savedOpen);
   const [hideSession, setHideSession] = useState(false);
   const [selected, setSelected] = useState(null);
   const entries = hideSession ? all.filter((e) => !isSessionCheck(e)) : all;
@@ -16,7 +27,10 @@ export default function Inspector() {
   return (
     <aside className="inspector" aria-label="API calls">
       <div className="inspector-bar">
-        <button className="inspector-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <button className="inspector-toggle" aria-expanded={open} onClick={() => setOpen((v) => {
+          try { localStorage.setItem(OPEN_KEY, String(!v)); } catch {}
+          return !v;
+        })}>
           {open ? '▾' : '▸'} API calls <span className="pg-badge">{all.length}</span>
         </button>
         {open && all.length > 0 && (
