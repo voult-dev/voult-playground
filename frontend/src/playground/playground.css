@@ -187,7 +187,15 @@ pre code { border: 0; padding: 0; background: none; }
 .pg-brand .badge-preview { margin-left: 2px; font-size: var(--t-micro); font-weight: var(--w-medium); letter-spacing: 0; }
 .pg-sidebar nav { display: block; padding: 0; margin: 0; border: 0; }
 .pg-nav-group { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
-.pg-nav-title { margin: 0 0 4px; padding: 0 10px; font-size: var(--t-xs); font-weight: var(--w-medium); color: var(--text-3); }
+/* Group headings are labels, not links: small caps, tracked, muted, a hairline after, no pointer. */
+.pg-nav-title {
+  display: flex; align-items: center; gap: 8px;
+  margin: 6px 0 6px; padding: 0 10px;
+  font-family: var(--font-mono); font-size: 0.6875rem; font-weight: var(--w-medium);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3);
+  cursor: default; user-select: none;
+}
+.pg-nav-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .pg-nav-link {
   display: flex; justify-content: space-between; align-items: center;
   padding: 7px 10px;
