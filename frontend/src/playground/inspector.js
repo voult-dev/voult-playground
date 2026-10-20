@@ -83,3 +83,20 @@ export function installInspector(target = globalThis) {
     }
   };
 }
+
+// Keyboard shortcut for the API calls panel, like the terminal toggle in VS Code and Cursor:
+// Cmd+J on Mac, Ctrl+J elsewhere. Shift/Alt combos are left alone (Cmd+Shift+J is Chrome's
+// Downloads on Mac), and so is the other platform's modifier.
+export const isMacPlatform = (nav = globalThis.navigator) =>
+  /Mac|iPhone|iPad|iPod/.test(nav?.userAgentData?.platform || nav?.platform || nav?.userAgent || '');
+
+export const toggleShortcutLabel = (mac) => (mac ? '⌘J' : 'Ctrl+J');
+export const toggleShortcutAria = (mac) => (mac ? 'Meta+J' : 'Control+J');
+
+/** @param {{ key: string, code?: string, metaKey: boolean, ctrlKey: boolean, shiftKey: boolean, altKey: boolean }} e */
+export function isToggleShortcut(e, mac) {
+  if (e.shiftKey || e.altKey) return false;
+  if (mac ? !e.metaKey || e.ctrlKey : !e.ctrlKey || e.metaKey) return false;
+  // code catches non-Latin layouts, where key isn't "j".
+  return e.key?.toLowerCase() === 'j' || e.code === 'KeyJ';
+}

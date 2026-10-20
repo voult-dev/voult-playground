@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
-import { clearEntries, getEntries, installInspector, redact } from './inspector.js';
+import { clearEntries, getEntries, installInspector, isToggleShortcut, redact } from './inspector.js';
 
 /** A window-like object whose fetch answers JSON. */
 function fakeWindow(answer = { status: 200, body: { ok: true } }) {
@@ -68,4 +68,17 @@ test('keeps the newest 25, newest first', async () => {
 test('redact masks password, secret and token keys at any depth, leaves the rest', () => {
   assert.deepEqual(redact({ newPassword: 'x', clientSecret: 'y', list: [{ token: 'z', code: '123456' }] }),
     { newPassword: '••••', clientSecret: '••••', list: [{ token: '••••', code: '123456' }] });
+});
+
+test('Cmd+J on Mac and Ctrl+J elsewhere toggle the panel; Shift/Alt combos and the wrong modifier do not', () => {
+  const key = (mods) => ({ key: 'j', code: 'KeyJ', metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...mods });
+  assert.equal(isToggleShortcut(key({ metaKey: true }), true), true);
+  assert.equal(isToggleShortcut(key({ ctrlKey: true }), false), true);
+  assert.equal(isToggleShortcut(key({ ctrlKey: true, key: 'J' }), false), true); // Caps Lock
+  assert.equal(isToggleShortcut(key({ ctrlKey: true }), true), false); // Ctrl+J on Mac
+  assert.equal(isToggleShortcut(key({ metaKey: true }), false), false); // Win+J elsewhere
+  assert.equal(isToggleShortcut(key({ metaKey: true, shiftKey: true }), true), false);
+  assert.equal(isToggleShortcut(key({ ctrlKey: true, altKey: true }), false), false);
+  assert.equal(isToggleShortcut(key({ metaKey: true, key: 'k', code: 'KeyK' }), true), false);
+  assert.equal(isToggleShortcut(key({ metaKey: true, key: 'о' }), true), true); // Cyrillic layout, physical J
 });

@@ -1,5 +1,5 @@
-import { useState, useSyncExternalStore } from 'react';
-import { clearEntries, getEntries, subscribe } from './inspector.js';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
+import { clearEntries, getEntries, isMacPlatform, isToggleShortcut, subscribe, toggleShortcutAria, toggleShortcutLabel } from './inspector.js';
 
 const narrow = () => typeof matchMedia === 'function' && matchMedia('(max-width: 760px)').matches;
 const OPEN_KEY = 'pg-api-calls-open';
@@ -13,6 +13,8 @@ function savedOpen() {
   return !narrow();
 }
 
+const MAC = isMacPlatform();
+
 const isSessionCheck = (e) => e.method === 'GET' && e.path === '/api/auth/session';
 
 /** Docked panel: the latest /api/* calls, newest first; click one for its request and response. */
@@ -24,13 +26,27 @@ export default function Inspector() {
   const entries = hideSession ? all.filter((e) => !isSessionCheck(e)) : all;
   const shown = entries.find((e) => e.id === selected) ?? entries[0];
 
+  // One toggle for the button and the shortcut, so both are remembered across reloads.
+  const toggle = useCallback(() => setOpen((v) => {
+    try { localStorage.setItem(OPEN_KEY, String(!v)); } catch {}
+    return !v;
+  }), []);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!isToggleShortcut(e, MAC)) return;
+      e.preventDefault(); // Chrome on Windows/Linux would open Downloads
+      if (!e.repeat) toggle();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [toggle]);
+
   return (
     <aside className="inspector" aria-label="API calls">
       <div className="inspector-bar">
-        <button className="inspector-toggle" aria-expanded={open} onClick={() => setOpen((v) => {
-          try { localStorage.setItem(OPEN_KEY, String(!v)); } catch {}
-          return !v;
-        })}>
+        <button className="inspector-toggle" aria-expanded={open} onClick={toggle}
+          title={`Toggle API calls (${toggleShortcutLabel(MAC)})`} aria-keyshortcuts={toggleShortcutAria(MAC)}>
           {open ? '▾' : '▸'} API calls <span className="pg-badge">{all.length}</span>
         </button>
         {open && all.length > 0 && (
