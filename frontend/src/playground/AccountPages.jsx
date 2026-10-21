@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PASSWORD_REQUIREMENTS_MESSAGE, useSession, useVoult } from '@voult/react';
 import Danger from '../auth/account/Danger.jsx';
 import ForgotPassword from '../auth/ForgotPassword.jsx';
@@ -56,7 +56,13 @@ export function AccountPage() {
 }
 
 function Profile() {
-  const { user, refresh } = useSession();
+  const { user: sessionUser, refresh } = useSession();
+  // The session's user is what sign-in cached in a cookie, which can lack the name; the profile
+  // comes from GET /user/me, with the cached fields as a fallback while it loads.
+  const [profile, setProfile] = useState(null);
+  const loadProfile = () => request('/user/me').then(({ user }) => setProfile(user)).catch(() => {});
+  useEffect(() => { loadProfile(); }, []);
+  const user = { ...sessionUser, ...profile };
   const [editing, setEditing] = useState(false);
   const [run, note] = useAction();
   return (
@@ -68,7 +74,7 @@ function Profile() {
         {user.username && <><dt>Username</dt><dd>{user.username}</dd></>}
       </dl>
       {editing ? (
-        <form onSubmit={run(async ({ fullName }) => { await request('/user/me', { method: 'PATCH', body: { fullName } }); await refresh(); setEditing(false); return 'Saved.'; })}>
+        <form onSubmit={run(async ({ fullName }) => { await request('/user/me', { method: 'PATCH', body: { fullName } }); await Promise.all([refresh(), loadProfile()]); setEditing(false); return 'Saved.'; })}>
           <input name="fullName" aria-label="Full name" defaultValue={user.fullName} required />
           <button className="primary">Save</button>
           <button type="button" onClick={() => setEditing(false)}>Cancel</button>
