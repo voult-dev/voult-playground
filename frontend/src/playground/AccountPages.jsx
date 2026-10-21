@@ -66,7 +66,6 @@ function Profile() {
         <dt>Name</dt><dd>{user.fullName || '–'}</dd>
         <dt>Email</dt><dd>{user.email || '–'} {user.email && (user.isEmailVerified ? <span className="pg-badge ok">verified</span> : <span className="pg-badge warn">not verified</span>)}</dd>
         {user.username && <><dt>Username</dt><dd>{user.username}</dd></>}
-        <dt>User ID</dt><dd><code>{user.id}</code></dd>
       </dl>
       {editing ? (
         <form onSubmit={run(async ({ fullName }) => { await request('/user/me', { method: 'PATCH', body: { fullName } }); await refresh(); setEditing(false); return 'Saved.'; })}>
