@@ -11,6 +11,7 @@ import { PAGES } from './pages.js';
 import { LockIcon, ThemeToggle, Wordmark } from './ui.jsx';
 import { MagicLinkPage, OAuthPage, PasskeysPage, SignInPage, SignUpPage } from './SignInPages.jsx';
 import Utilities from './Utilities.jsx';
+import '../tokens.css'; // design tokens (synced from voult-landing); must load after the template's styles.css
 import './playground.css';
 
 // The playground's shell (rendered by main.jsx instead of the template's App.jsx): a sidebar of

@@ -12,3 +12,13 @@ jobs:
       - run: npm run check:backend
       - run: npm test
       - run: npm run build
+
+  # Design tokens must match voult-landing's tokens.css, the source of truth (Phase 4, DoD C4).
+  # Its own job, so a GitHub outage shows up here and not as a failed test suite.
+  tokens:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm run tokens:check

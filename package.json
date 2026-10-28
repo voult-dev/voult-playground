@@ -9,7 +9,9 @@
     "start": "node backend/server.js",
     "doctor": "voult doctor --callback-url http://localhost:5173/api/auth/oauth/callback",
     "test": "node --test scripts/*.test.mjs frontend/src/playground/*.test.js",
-    "check:backend": "node scripts/check-backend.mjs"
+    "check:backend": "node scripts/check-backend.mjs",
+    "tokens:sync": "node scripts/sync-tokens.mjs frontend/src/tokens.css",
+    "tokens:check": "node scripts/sync-tokens.mjs frontend/src/tokens.css --check"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^14.0.0",

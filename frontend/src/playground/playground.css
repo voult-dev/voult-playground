@@ -1,6 +1,7 @@
 /* Playground styles, on top of the template's styles.css (which styles the embedded template
-   components). The design system is voult.dev's (voult-landing/public/css/landing.css): same
-   tokens, fonts and primitives. Keep the token block in sync with that file. */
+   components). The design system is voult.dev's: tokens come from ../tokens.css, a copy of
+   voult-landing/public/css/tokens.css kept identical by scripts/sync-tokens.mjs (CI checks it).
+   Never define colours here: use the tokens. */
 
 @font-face {
   font-family: 'Instrument Sans';
@@ -38,90 +39,9 @@
   line-gap-override: 0%;
 }
 
-/* ---------- voult.dev tokens: light is warm paper, dark is deep neutral ---------- */
-:root {
-  color-scheme: light;
-  --bg: #f6f5f1;
-  --bg-alt: #efede7;
-  --surface: #fffefb;
-  --surface-2: #f8f7f3;
-  --surface-3: #eceae3;
-  --border: #e2dfd6;
-  --border-strong: #cdc9bd;
-  --text: #17160f;
-  --text-2: #48463f;
-  --text-3: #67645b;
-
-  --accent: #a3530a;
-  --accent-bg: #f8ead6;
-  --accent-border: #e8c79a;
-  --ok: #17704a;
-  --ok-bg: #e3f1e8;
-  --warn: #85560a;
-  --warn-bg: #f7eed8;
-  --bad: #b42318;
-  --bad-bg: #fbe9e7;
-
-  --primary: #17160f;
-  --primary-fg: #f6f5f1;
-  --primary-hover: #34322a;
-
-  --code-bg: #faf9f5;
-  --shadow-sm: 0 1px 2px rgba(23, 22, 15, 0.05);
-  --shadow-lg: 0 1px 2px rgba(23, 22, 15, 0.04), 0 24px 48px -24px rgba(23, 22, 15, 0.22);
-
-  --font-sans: 'Instrument Sans', 'Instrument Sans Fallback', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', 'IBM Plex Mono Fallback', ui-monospace, Menlo, monospace;
-
-  --t-h1: clamp(1.875rem, 1.5rem + 1.4vw, 2.5rem);
-  --t-h3: 1.1875rem;
-  --t-lede: clamp(1.0625rem, 1rem + 0.35vw, 1.1875rem);
-  --t-ui: 0.9375rem;
-  --t-small: 0.875rem;
-  --t-xs: 0.8125rem;
-  --t-micro: 0.75rem;
-  --w-medium: 500;
-  --w-semibold: 600;
-  --radius-sm: 4px;
-  --radius: 6px;
-  --radius-lg: 10px;
-  --ease: cubic-bezier(0.22, 1, 0.36, 1);
-
-  /* The template's styles.css tokens, remapped so embedded template pages match. */
-  --fg: var(--text); --muted: var(--text-3); --line: var(--border); --err: var(--bad);
-}
-
-[data-theme='dark'] {
-  color-scheme: dark;
-  --bg: #0e0f11;
-  --bg-alt: #121316;
-  --surface: #16171a;
-  --surface-2: #1b1c20;
-  --surface-3: #24252a;
-  --border: #2a2b30;
-  --border-strong: #3b3d43;
-  --text: #ecebe8;
-  --text-2: #b4b2ac;
-  --text-3: #8f8d87;
-
-  --accent: #eda84a;
-  --accent-bg: rgba(237, 168, 74, 0.1);
-  --accent-border: rgba(237, 168, 74, 0.32);
-  --ok: #5fd08f;
-  --ok-bg: rgba(95, 208, 143, 0.1);
-  --warn: #e8c35a;
-  --warn-bg: rgba(232, 195, 90, 0.1);
-  --bad: #f2837a;
-  --bad-bg: rgba(242, 131, 122, 0.12);
-
-  --primary: #ecebe8;
-  --primary-fg: #0e0f11;
-  --primary-hover: #ffffff;
-
-  --code-bg: #111215;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 0 0 1px rgba(255, 255, 255, 0.02), 0 32px 64px -24px rgba(0, 0, 0, 0.75);
-}
+/* ---------- Template remap: the template's styles.css tokens, pointed at the design tokens
+   so embedded template pages match. (The tokens themselves load from ../tokens.css.) ---------- */
+:root { --fg: var(--text); --muted: var(--text-3); --line: var(--border); --err: var(--bad); }
 
 html.theme-switching *, html.theme-switching *::before, html.theme-switching *::after {
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease !important;
@@ -220,7 +140,9 @@ pre code { border: 0; padding: 0; background: none; }
 
 /* ---------- Page header ---------- */
 .pg-header { margin-bottom: 28px; }
-.pg-header h1, .pg-hero h1 { margin: 0 0 10px; font-size: var(--t-h1); line-height: 1.06; letter-spacing: -0.035em; }
+/* App page titles: smaller than voult.dev's --t-h1 (the Playground's own value before Phase 4; Phase 6 decides
+   whether app titles get a token). */
+.pg-header h1, .pg-hero h1 { margin: 0 0 10px; font-size: clamp(1.875rem, 1.5rem + 1.4vw, 2.5rem); line-height: 1.06; letter-spacing: -0.035em; }
 .h1-quiet { color: var(--text-3); }
 .pg-intro { margin: 0 0 16px; color: var(--text-2); font-size: var(--t-lede); line-height: 1.5; max-width: 34em; }
 .pg-routes { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; }
