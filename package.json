@@ -11,7 +11,8 @@
     "test": "node --test scripts/*.test.mjs frontend/src/playground/*.test.js",
     "check:backend": "node scripts/check-backend.mjs",
     "tokens:sync": "node scripts/sync-tokens.mjs frontend/src/tokens.css",
-    "tokens:check": "node scripts/sync-tokens.mjs frontend/src/tokens.css --check"
+    "tokens:check": "node scripts/sync-tokens.mjs frontend/src/tokens.css --check",
+    "colors:check": "node scripts/check-css-colors.mjs frontend/src"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^14.0.0",

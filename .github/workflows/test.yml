@@ -10,6 +10,8 @@ jobs:
       - run: npm ci
       # D6: the server stays the template's: every auth route comes from @voult/express.
       - run: npm run check:backend
+      # Colours come from tokens.css only (Phase 4, DoD G1); styles.css is on css-colors.allowlist.json.
+      - run: npm run colors:check
       - run: npm test
       - run: npm run build
 

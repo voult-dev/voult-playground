@@ -1,0 +1,6 @@
+{
+  "note": "Colour literals the template's styles.css still has (Phase 4, DoD G1). Counts only go down: Phase 6 moves them to tokens and lowers the number, deleting the line at 0. New files get none. Checked by scripts/check-css-colors.mjs.",
+  "files": {
+    "styles.css": 14
+  }
+}
